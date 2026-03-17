@@ -32,5 +32,35 @@ const createWallet = async (req, res) => {
         return res.status(500).json({ message: error.message });
     }
 };
+const updateWallet = async (req, res) => {
+    try {
+        const walletId = req.params.id;
+        const userId = req.user.id;
+        const { name, type, balance } = req.body;
+        const wallet = await Wallet.findById(walletId);
+        if (!wallet) {
+            return res.status(404).json({ message: "Wallet not found!" });
+        }
+        if (wallet.user_id !== userId) {
+            return res.status(403).json({ message: "You are not authorized to update this wallet!" });
+        }
+        if (!name || !type || balance === undefined) {
+            return res.status(400).json({ message: "Name, type, and balance are required!" });
+        }
+        if (balance < 0) {
+            return res.status(400).json({ message: "Balance must be a positive number!" });
+        }
+        if (name !== wallet.name) {
+            const existingWallet = await Wallet.findByName(userId, name);
+            if (existingWallet) {
+                return res.status(400).json({ message: "Wallet name already exists!" });
+            }
+        }
+        await Wallet.updateWallet(walletId, name, type, balance);
+        return res.status(200).json({ message: "Wallet updated successfully!" });
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
+};
 
-module.exports = {getAllWallets, createWallet};
+module.exports = { getAllWallets, createWallet, updateWallet };

@@ -3,6 +3,8 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
+// import Routes
+const authRoute = require("./router/authRoute");
 
 const db = require("./config/db");
 const app = express();
@@ -16,6 +18,8 @@ app.use(cors({
     origin: 'http://localhost:5173',
     credentials: true
 }));
+app.use("/api/auth", authRoute);
+
 const PORT = process.env.PORT || 9999;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

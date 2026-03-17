@@ -6,6 +6,7 @@ const cookieParser = require("cookie-parser");
 // import Routes
 const authRoute = require("./router/authRoute");
 const walletRoute = require("./router/walletRoute");
+const categoryRoute = require("./router/categoryRoute");
 
 const db = require("./config/db");
 const app = express();
@@ -21,6 +22,7 @@ app.use(cors({
 }));
 app.use("/api/auth", authRoute);
 app.use("/api/wallets", walletRoute);
+app.use("/api/categories", categoryRoute);
 
 const PORT = process.env.PORT || 9999;
 app.listen(PORT, () => {

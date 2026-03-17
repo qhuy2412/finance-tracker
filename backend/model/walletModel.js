@@ -21,6 +21,9 @@ const Wallet = {
     findByName: async (userId, name) => {
         const [results] = await db.query('SELECT * FROM wallets WHERE user_id = ? AND name = ?', [userId, name]);
         return results[0];
-    }
+    },
+    updateBalance: async (id, amount) => {
+        return await db.query('UPDATE wallets SET balance = balance + ? WHERE id = ?', [amount, id]);
+    },
 };
 module.exports = Wallet;

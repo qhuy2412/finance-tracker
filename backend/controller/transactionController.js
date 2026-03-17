@@ -13,12 +13,10 @@ const getAllTransactionsByWalletId = async (req, res) => {
     }
 };
 const createNormalTransaction = async (req, res) => {
-    const walletId = req.params.walletId;
     const userId = req.user.id;
-    const {categoryId,type, amount, transaction_date, note} = req.body;
-    if (!type || amount === undefined || !transaction_date || !categoryId) {
-        console.log(type, amount, transaction_date, categoryId);
-        return res.status(400).json({ message: "Type, amount, transaction_date, and categoryId are required!" });
+    const {walletId,categoryId,type, amount, transaction_date, note} = req.body;
+    if (!type || amount === undefined || !transaction_date || !categoryId || !walletId) {
+        return res.status(400).json({ message: "Type, amount, transaction_date, categoryId, and walletId are required!" });
     }
     if (amount < 0) {
         return res.status(400).json({ message: "Amount must be a positive number!" });
@@ -63,4 +61,47 @@ const createNormalTransaction = async (req, res) => {
         connection.release();
     }
 };
-module.exports = { getAllTransactionsByWalletId, createNormalTransaction };
+
+const deleteTransaction = async (req, res) => {
+    const transactionId = req.params.transactionId;
+    const userId = req.user.id;
+
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        const transaction = await Transaction.getTransactionById(transactionId, connection);
+        // Check if wallet exists and belongs to user
+        const wallet = await Wallet.findById(transaction.wallet_id, connection);
+        if (!wallet) {
+            await connection.rollback();
+            return res.status(404).json({ message: "Wallet not found!" });
+        }
+        if (wallet.user_id !== userId) {
+            await connection.rollback();
+            return res.status(403).json({ message: "You are not authorized to delete transaction from this wallet!" });
+        }
+
+        // Get the transaction details
+        if (!transaction) {
+            await connection.rollback();
+            return res.status(404).json({ message: "Transaction not found!" });
+        }
+
+        // Reverse the wallet balance
+        const balanceReversal = transaction.type === 'INCOME' ? -transaction.amount : transaction.amount;
+        await Wallet.updateBalance(transaction.wallet_id, balanceReversal, connection);
+
+        // Delete the transaction
+        await Transaction.deleteTransaction(transactionId, connection);
+        
+        await connection.commit();
+        return res.status(200).json({ message: "Transaction deleted successfully!" });
+    } catch (error) {
+        await connection.rollback();
+        return res.status(500).json({ message: error.message });
+    } finally {
+        connection.release();
+    }
+};
+
+module.exports = { getAllTransactionsByWalletId, createNormalTransaction, deleteTransaction };

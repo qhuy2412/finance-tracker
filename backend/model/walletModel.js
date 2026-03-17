@@ -8,7 +8,11 @@ const Wallet = {
     createWallet: async (walletId, userId, name,type, balance) => {
         return await db.query('INSERT INTO wallets (id,user_id, name,type,balance) VALUES (?,?, ?, ?, ?)', [walletId,userId, name,type, balance]);
     },
-    findById: async (id) => {
+    findById: async (id, connection) => {
+        if (connection) {
+            const [results] = await connection.execute('SELECT * FROM wallets WHERE id = ?',[id]);
+            return results[0];
+        }
         const [results] = await db.query('SELECT * FROM wallets WHERE id = ?',[id]);
         return results[0];
     },
@@ -22,7 +26,10 @@ const Wallet = {
         const [results] = await db.query('SELECT * FROM wallets WHERE user_id = ? AND name = ?', [userId, name]);
         return results[0];
     },
-    updateBalance: async (id, amount) => {
+    updateBalance: async (id, amount, connection) => {
+        if (connection) {
+            return await connection.execute('UPDATE wallets SET balance = balance + ? WHERE id = ?', [amount, id]);
+        }
         return await db.query('UPDATE wallets SET balance = balance + ? WHERE id = ?', [amount, id]);
     },
 };

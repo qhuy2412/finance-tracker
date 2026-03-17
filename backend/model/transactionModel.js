@@ -6,6 +6,13 @@ const Transaction = {
     },
     createNormalTransaction: async (transactionId,userId, walletId, categoryId,type, amount, transaction_date, note,connection) => {
         return await connection.execute('INSERT INTO transactions (id,user_id, wallet_id, category_id,type, amount, transaction_date, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [transactionId, userId, walletId, categoryId, type, amount, transaction_date, note]);
+    },
+    getTransactionById: async (transactionId, connection) => {
+        const [rows] = await connection.execute('SELECT * FROM transactions WHERE id = ?', [transactionId]);
+        return rows[0];
+    },
+    deleteTransaction: async (transactionId, connection) => {
+        return await connection.execute('DELETE FROM transactions WHERE id = ?', [transactionId]);
     }
 };
 module.exports = Transaction;

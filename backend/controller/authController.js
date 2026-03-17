@@ -61,5 +61,37 @@ const login = async (req, res) => {
     } catch (error) {
         return res.status(500).json({ message: error.message });
     }
-}
-module.exports = { register, login };
+};
+const refreshToken = async (req, res) => {
+    try {
+        const refresh_token = req.cookies.refresh_token;
+        if (!refresh_token) {
+            return res.status(401).json({ message: "Unauthorized!" });
+        }
+        const [results] = await db.query('SELECT * FROM refresh_tokens WHERE token = ?', [refresh_token]);
+        const tokenData = results[0];
+        if (!tokenData) {
+            return res.status(401).json({ message: "Access denied!" });
+        }
+        if (new Date(tokenData.expired_at) < new Date()) {
+            await db.query('DELETE FROM refresh_tokens WHERE token = ?', [refresh_token]);
+            return res.status(401).json({ message: "Refresh token expired!" });
+        }
+        const decoded = jwt.verify(refresh_token, process.env.JWT_TOKEN_SECRET);
+        const user = await User.findById(decoded.id);
+        if (!user) {
+            return res.status(401).json({ message: "Access denied!" });
+        }
+        const access_token = jwt.sign({ id: user.id }, process.env.JWT_SECRET_KEY, { expiresIn: '15m' });
+        res.cookie('access_token', access_token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 15 * 60 * 1000 // 15 minutes
+        });
+        return res.status(200).json({ message: "Token refreshed successfully!" });
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
+};
+module.exports = { register, login, refreshToken };

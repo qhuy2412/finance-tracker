@@ -8,6 +8,7 @@ const authRoute = require("./router/authRoute");
 const walletRoute = require("./router/walletRoute");
 const categoryRoute = require("./router/categoryRoute");
 const transactionRoute = require("./router/transactionRoute");
+const debtRoute = require("./router/debtRoute");
 
 const db = require("./config/db");
 const app = express();
@@ -25,6 +26,7 @@ app.use("/api/auth", authRoute);
 app.use("/api/wallets", walletRoute);
 app.use("/api/categories", categoryRoute);
 app.use("/api/transactions", transactionRoute);
+app.use("/api/debts", debtRoute);
 
 const PORT = process.env.PORT || 9999;
 app.listen(PORT, () => {

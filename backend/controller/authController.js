@@ -6,12 +6,9 @@ const User = require('../model/userModel');
 
 const register = async (req, res) => {
     try {
-        const { username, email, password, confirmationPassword } = req.body;
+        const { username, email, password} = req.body;
         if (!username || !email || !password) {
             return res.status(400).json({ message: "Username, email, and password are required!" })
-        }
-        if (password !== confirmationPassword) {
-            return res.status(400).json({ message: "Confirmation password is incorrect!" });
         }
         const existingEmail = await User.findByEmail(email);
         if (existingEmail) {

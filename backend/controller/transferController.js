@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/db');
-
+const Transfer = require('../model/transferModel');
 const transferMoney = async (req, res) => {
     const userId = req.user.id;
     const { from_wallet_id, to_wallet_id, amount, transaction_date, note } = req.body;
@@ -97,6 +97,17 @@ const transferMoney = async (req, res) => {
         if (connection) connection.release();
     }
 };
+const getAllTransfers = async (req, res) => {
+    const userId = req.user.id;
+    try{
+        const transfers = await Transfer.getAllTrasnfersByUserId(userId);
+        return res.status(200).json({ 
+            message: "Get all transfers successfully!",
+            data: transfers
+        });
+    }catch(error){
+        return res.status(500).json({ error: error.message });
+    }
+};
 
-
-module.exports = { transferMoney };
+module.exports = { transferMoney, getAllTransfers };

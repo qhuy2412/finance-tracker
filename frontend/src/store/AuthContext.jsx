@@ -8,13 +8,13 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     useEffect(() => {
         authApi.getMe()
-            .then(res => setUser(res.data))
+            .then(res => setUser(res.data.user))
             .catch(() => setUser(null))
             .finally(() => setLoading(false));
     }, []);
     const handleLogin = async (email, password) => {
         const res = await authApi.login(email, password);
-        setUser(res.data);
+        setUser(res.data.user);
     };
     const handleLogout = async () => {
         await authApi.logout();
@@ -22,7 +22,7 @@ export const AuthProvider = ({ children }) => {
     };
     const handleRegister = async (username, email, password) => {
         const res = await authApi.register(username, email, password);
-        setUser(res.data);
+        setUser(res.data.user);
     }
     return (
         <AuthContext.Provider value={{ user, loading, login: handleLogin, logout: handleLogout, register: handleRegister }}>

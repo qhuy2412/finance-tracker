@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AuthPage from "./pages/auth/AuthPage";
 import Dashboard from "./pages/dashboard/Dashboard";
+import Layout from "./components/common/Layout";
 
 export default function App() {
   return (
@@ -8,7 +9,13 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/auth" />} />
         <Route path="/auth" element={<AuthPage />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route element={<Layout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          {/* <Route path="/transactions" element={<Transactions />} />
+          <Route path="/budgets" element={<Budgets />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} /> */}
+        </Route>
       </Routes>
     </BrowserRouter>
   );

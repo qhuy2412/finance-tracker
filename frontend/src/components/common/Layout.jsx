@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Wallet,
@@ -24,6 +24,7 @@ const menuItems = [
 ];
 
 export default function Layout() {
+  const navigate = useNavigate();
   const { logout, user } = useAuth();
   const location = useLocation();
 
@@ -94,7 +95,10 @@ export default function Layout() {
           </div>
 
           <button
-            onClick={logout}
+            onClick={() => {
+              logout();
+              navigate("/auth");
+            }}
             className="flex items-center gap-3 px-3 py-2.5 w-full text-sm font-medium text-red-400 hover:bg-red-50 hover:text-red-600 rounded-xl transition-colors"
           >
             <LogOut size={16} />

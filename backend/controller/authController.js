@@ -111,4 +111,18 @@ const getMe = async (req, res) => {
         return res.status(500).json({ message: error.message });
     }
 };
-module.exports = { register, login, refreshToken, getMe };
+const logout = async (req,res) => {
+    try {
+        const refresh_token = req.cookies.refresh_token;
+        if (!refresh_token) {
+            return res.status(401).json({ message: "Unauthorized!" });
+        }
+        await db.query('DELETE FROM refresh_tokens WHERE token = ?', [refresh_token]);
+        res.clearCookie('access_token');
+        res.clearCookie('refresh_token');
+        return res.status(200).json({ message: "Logout successfully!" });
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
+}
+module.exports = { register, login, refreshToken, getMe, logout };

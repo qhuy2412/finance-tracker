@@ -22,7 +22,7 @@ const createDebt = async (req, res) => {
     if(amount <=0){
         return res.status(400).json({message: "The amount must be greater than 0!"});
     }
-    const connection = db.getConnection();
+    const connection = await db.getConnection();
     try{
         await connection.beginTransaction();
         const [wallets] = await connection.execute(
@@ -69,7 +69,7 @@ const createDebt = async (req, res) => {
         await connection.rollback();
         return res.status(500).json({message: error.message});
     }finally{
-        await connection.release();
+        connection.release();
     }
 };
 const payDebt = async (req, res) => {
@@ -85,7 +85,7 @@ const payDebt = async (req, res) => {
         res.status(400).json({message: "Pay amount must be greater than 0!"});
     }
     
-    const connection = db.getConnection();
+    const connection = await db.getConnection();
     try{
         await connection.beginTransaction();
         const [debts] = await connection.execute(
@@ -152,8 +152,68 @@ const payDebt = async (req, res) => {
         await connection.rollback();
         res.status(500).json({message: error.message});
     }finally{
-        await connection.release();
+        connection.release();
+    }
+};
+const deleteDebt = async (req, res) => {
+    const debtId = req.params.debtId;
+    const userId = req.user.id; 
+
+    const connection = await db.getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        const [debts] = await connection.execute(
+            'SELECT * FROM debts WHERE id = ? AND user_id = ? FOR UPDATE',
+            [debtId, userId]
+        );
+        const debt = debts[0];
+
+        if (!debt) {
+            throw new Error("Debt not found or you are unauthorized!");
+        }
+        if (parseFloat(debt.paid_amount) > 0) {
+            throw new Error("Cannot delete! This debt has payment transactions. Please delete the payment history first.");
+        }
+
+        const amount = parseFloat(debt.amount);
+        const paidAmount = parseFloat(debt.paid_amount);
+        let balanceChange = 0;
+
+        if (debt.type === 'BORROW') {
+            balanceChange = paidAmount - amount; 
+        } else if (debt.type === 'LEND') {
+            balanceChange = amount - paidAmount;
+        }
+
+        await connection.execute(
+            'UPDATE wallets SET balance = balance + ? WHERE id = ?',
+            [balanceChange, debt.wallet_id]
+        );
+
+        await connection.execute(
+            'DELETE FROM debts WHERE id = ?',
+            [debtId]
+        );
+
+        await connection.commit();
+
+        return res.status(200).json({ 
+            message: "Debt deleted and wallet balance updated successfully!",
+            data: {
+                deleted_debt_id: debtId,
+                wallet_refunded: balanceChange
+            }
+        });
+
+    } catch (error) {
+        if (connection) await connection.rollback();
+        const statusCode = error.message.includes("SQL") ? 500 : 400;
+        return res.status(statusCode).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 };
 
-module.exports = { getAllDebts, createDebt,payDebt };
+module.exports = { getAllDebts, createDebt,payDebt, deleteDebt };

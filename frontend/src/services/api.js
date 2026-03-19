@@ -25,9 +25,9 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Don't retry refresh-token or auth endpoints to prevent infinite loop
-    const isRefreshTokenRequest = originalRequest.url?.endsWith('/auth/refresh-token');
-    const isAuthRequest = originalRequest.url?.endsWith('/auth/me');
+    // Use .includes to be safer against different API URL structures
+    const isRefreshTokenRequest = originalRequest.url?.includes('/auth/refresh-token');
+    const isAuthRequest = originalRequest.url?.includes('/auth/me') || originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/register');
     
     if (error.response?.status === 401 && !originalRequest._retry && !isRefreshTokenRequest && !isAuthRequest) {
       
@@ -57,7 +57,10 @@ api.interceptors.response.use(
           .catch((err) => {
             processQueue(err, null);
             isRefreshing = false;
-            window.location.href = "/auth";
+            // Prevent infinite redirect loops if already on auth page
+            if (window.location.pathname !== "/auth") {
+              window.location.href = "/auth";
+            }
             reject(err);
           })
           .finally(() => {

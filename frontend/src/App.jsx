@@ -6,6 +6,7 @@ import Wallets from "./pages/wallet/Wallet";
 import Transactions from "./pages/transaction/Transactions";
 import Debts from "./pages/debt/Debts";
 import Budgets from "./pages/budget/Budgets";
+import Savings from "./pages/saving/Savings";
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/debts" element={<Debts />} />
           <Route path="/budgets" element={<Budgets />} />
+          <Route path="/savings" element={<Savings />} />
           {/* <Route path="/settings" element={<Settings />} /> */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Route>

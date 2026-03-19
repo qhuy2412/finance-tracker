@@ -6,12 +6,9 @@ const User = require('../model/userModel');
 
 const register = async (req, res) => {
     try {
-        const { username, email, password, confirmationPassword } = req.body;
+        const { username, email, password} = req.body;
         if (!username || !email || !password) {
             return res.status(400).json({ message: "Username, email, and password are required!" })
-        }
-        if (password !== confirmationPassword) {
-            return res.status(400).json({ message: "Confirmation password is incorrect!" });
         }
         const existingEmail = await User.findByEmail(email);
         if (existingEmail) {
@@ -94,4 +91,38 @@ const refreshToken = async (req, res) => {
         return res.status(500).json({ message: error.message });
     }
 };
-module.exports = { register, login, refreshToken };
+const getMe = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        console.log("User ID from token:", userId);
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found!" });
+        }
+        return res.status(200).json({
+            message: "User info retrieved successfully!",
+            user: {
+                id: userId,
+                username: user.user_name,
+                email: user.email
+            }
+        });
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
+};
+const logout = async (req,res) => {
+    try {
+        const refresh_token = req.cookies.refresh_token;
+        if (!refresh_token) {
+            return res.status(401).json({ message: "Unauthorized!" });
+        }
+        await db.query('DELETE FROM refresh_tokens WHERE token = ?', [refresh_token]);
+        res.clearCookie('access_token');
+        res.clearCookie('refresh_token');
+        return res.status(200).json({ message: "Logout successfully!" });
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
+}
+module.exports = { register, login, refreshToken, getMe, logout };

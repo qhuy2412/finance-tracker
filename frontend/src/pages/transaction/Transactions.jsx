@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, ArrowDownCircle, ArrowUpCircle, Trash2, Loader2, X, Wallet as WalletIcon, Search, FilterX } from "lucide-react";
+import { Plus, ArrowDownCircle, ArrowUpCircle, Trash2, Loader2, X, Wallet as WalletIcon, Search, FilterX, Activity, ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -273,19 +273,58 @@ export default function Transactions() {
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredTransactions.map((t) => {
-              const isExpense = t.type === 'EXPENSE';
+              const type = t.type || '';
+              const isExpense = type === 'EXPENSE';
+              const isIncome = type === 'INCOME';
+              
               const cat = categories.find(c => c.id == t.category_id);
               const walletName = wallets.find(w => w.id == t.wallet_id)?.name || "?";
+              
+              let colorClasses = "bg-blue-50 text-blue-500";
+              let amountClasses = "text-blue-500";
+              let sign = "";
+              let IconCmp = Activity;
+
+              if (isExpense) {
+                colorClasses = "bg-red-50 text-red-500";
+                amountClasses = "text-red-500";
+                sign = "-";
+                IconCmp = ArrowDownCircle;
+              } else if (isIncome) {
+                colorClasses = "bg-green-50 text-green-500";
+                amountClasses = "text-green-500";
+                sign = "+";
+                IconCmp = ArrowUpCircle;
+              } else if (type === 'DEBT_IN') {
+                colorClasses = "bg-orange-50 text-orange-500";
+                amountClasses = "text-orange-500";
+                sign = "+";
+                IconCmp = ArrowDownRight;
+              } else if (type === 'DEBT_OUT') {
+                colorClasses = "bg-purple-50 text-purple-500";
+                amountClasses = "text-purple-500";
+                sign = "-";
+                IconCmp = ArrowUpRight;
+              }
               
               return (
                 <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 hover:bg-slate-50 transition-colors gap-4">
                   <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isExpense ? "bg-red-50 text-red-500" : "bg-green-50 text-green-500"}`}>
-                      {isExpense ? <ArrowDownCircle size={18} /> : <ArrowUpCircle size={18} />}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${colorClasses}`}>
+                      <IconCmp size={18} />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-slate-800">{cat ? cat.name : "Khác"}</h3>
+                      <h3 className="font-semibold text-slate-800">
+                        {cat ? cat.name : (
+                          type === 'TRANSFER' ? 'Chuyển khoản' :
+                          type === 'DEBT_IN' ? 'Đi vay / Thu nợ' :
+                          type === 'DEBT_OUT' ? 'Cho vay / Trả nợ' : 'Khác'
+                        )}
+                      </h3>
                       <p className="text-xs text-slate-500 mt-1">
+                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase mr-2 ${colorClasses}`}>
+                           {isExpense ? 'Chi' : isIncome ? 'Thu' : (type === 'DEBT_IN' ? 'VAY' : type === 'DEBT_OUT' ? 'TRẢ/CHO VAY' : type)}
+                        </span>
                         {fmtDate(t.transaction_date)} • <span className="font-medium text-slate-600">{walletName}</span>
                         {t.note ? ` • ${t.note}` : ''}
                       </p>
@@ -294,8 +333,8 @@ export default function Transactions() {
                   
                   <div className="flex items-center justify-between sm:justify-end gap-4 text-right w-full sm:w-auto">
                     <div>
-                      <p className={`font-bold ${isExpense ? "text-red-500" : "text-green-500"}`}>
-                        {isExpense ? "-" : "+"}{fmtAmt(t.amount)}
+                      <p className={`font-bold ${amountClasses}`}>
+                        {sign}{fmtAmt(t.amount)}
                       </p>
                     </div>
                     <button 

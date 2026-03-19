@@ -3,24 +3,25 @@ import {
   LayoutDashboard,
   Wallet,
   PiggyBank,
-  Settings,
   LogOut,
   User,
   Bell,
   ChevronRight,
   ArrowLeftRight,
   HandCoins,
-  Coins
+  Coins,
+  History
 } from "lucide-react";
 import { useAuth } from "@/store/AuthContext";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Tổng quan", path: "/dashboard" },
   { icon: Wallet, label: "Ví", path: "/wallets" },
-  { icon: ArrowLeftRight, label: "Giao dịch", path: "/transactions" },
+  { icon: History, label: "Giao dịch", path: "/transactions" },
   { icon: HandCoins, label: "Quản lý nợ", path: "/debts" },
   { icon: PiggyBank, label: "Ngân sách", path: "/budgets" },
-  {icon: Coins, label: "Khoản tiết kiệm", path: "/savings"},
+  { icon: Coins, label: "Khoản tiết kiệm", path: "/savings" },
+  { icon: ArrowLeftRight, label: "Giao dịch nội bộ", path: "/transfers" },
 ];
 
 export default function Layout() {
@@ -43,11 +44,11 @@ export default function Layout() {
             <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-md shadow-blue-200">
               <svg width="16" height="16" viewBox="0 0 40 40" fill="none">
                 <path d="M20 2L5 8.5v10.5C5 29.2 11.8 37 20 39 28.2 37 35 29.2 35 19V8.5L20 2z"
-                  fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5"/>
+                  fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
                 <polyline points="10,25 15,18 20,22 26,13 32,8"
-                  stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
                 <polyline points="27,8 32,8 32,13"
-                  stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
             <div>
@@ -66,11 +67,10 @@ export default function Layout() {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${
-                  isActive
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${isActive
                     ? "bg-blue-600 text-white shadow-md shadow-blue-200"
                     : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 <item.icon size={17} />
                 <span className="flex-1">{item.label}</span>

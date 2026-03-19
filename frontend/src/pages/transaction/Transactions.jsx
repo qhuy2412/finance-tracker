@@ -54,7 +54,7 @@ export default function Transactions() {
       const activeWallets = walletData || [];
       setWallets(activeWallets);
       setCategories(catData || []);
-      
+
       // Concurrently fetch all transactions for all wallets to create a global list
       if (activeWallets.length > 0) {
         setModalWalletId(activeWallets[0].id.toString());
@@ -148,9 +148,9 @@ export default function Transactions() {
     return allTransactions.filter(t => {
       // 1. Wallet Filter
       if (filterWallet !== "all" && t.wallet_id.toString() !== filterWallet) return false;
-      
+
       // 2. Category Filter
-      if (filterCategory !== "all" && t.category_id.toString() !== filterCategory) return false;
+      if (filterCategory !== "all" && t.category_id?.toString() !== filterCategory) return false;
 
       // 3. Date Filter (matches YYYY-MM exactly if type="month" is used)
       if (filterDate && !t.transaction_date.startsWith(filterDate)) return false;
@@ -182,7 +182,7 @@ export default function Transactions() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      
+
       {/* Title & Add Button */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-slate-800">Tất cả Giao Dịch</h2>
@@ -194,12 +194,12 @@ export default function Transactions() {
 
       {/* Advanced Filter Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-        
+
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <Input 
-            type="text" 
+          <Input
+            type="text"
             placeholder="Tìm kiếm theo ghi chú hoặc danh mục..."
             className="pl-10 rounded-xl"
             value={searchQuery}
@@ -209,8 +209,8 @@ export default function Transactions() {
 
         {/* Dropdowns & Pickers */}
         <div className="flex flex-wrap items-center gap-3">
-          <select 
-            value={filterWallet} 
+          <select
+            value={filterWallet}
             onChange={(e) => setFilterWallet(e.target.value)}
             className="flex h-10 flex-1 min-w-[140px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
           >
@@ -218,8 +218,8 @@ export default function Transactions() {
             {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
 
-          <select 
-            value={filterCategory} 
+          <select
+            value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
             className="flex h-10 flex-1 min-w-[140px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
           >
@@ -227,7 +227,7 @@ export default function Transactions() {
             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
 
-          <Input 
+          <Input
             type="month"
             value={filterDate}
             onChange={(e) => setFilterDate(e.target.value)}
@@ -276,10 +276,10 @@ export default function Transactions() {
               const type = t.type || '';
               const isExpense = type === 'EXPENSE';
               const isIncome = type === 'INCOME';
-              
+
               const cat = categories.find(c => c.id == t.category_id);
               const walletName = wallets.find(w => w.id == t.wallet_id)?.name || "?";
-              
+
               let colorClasses = "bg-blue-50 text-blue-500";
               let amountClasses = "text-blue-500";
               let sign = "";
@@ -306,7 +306,7 @@ export default function Transactions() {
                 sign = "-";
                 IconCmp = ArrowUpRight;
               }
-              
+
               return (
                 <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 hover:bg-slate-50 transition-colors gap-4">
                   <div className="flex items-center gap-4">
@@ -317,27 +317,27 @@ export default function Transactions() {
                       <h3 className="font-semibold text-slate-800">
                         {cat ? cat.name : (
                           type === 'TRANSFER' ? 'Chuyển khoản' :
-                          type === 'DEBT_IN' ? 'Đi vay / Thu nợ' :
-                          type === 'DEBT_OUT' ? 'Cho vay / Trả nợ' : 'Khác'
+                            type === 'DEBT_IN' ? 'Đi vay / Thu nợ' :
+                              type === 'DEBT_OUT' ? 'Cho vay / Trả nợ' : 'Khác'
                         )}
                       </h3>
                       <p className="text-xs text-slate-500 mt-1">
                         <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase mr-2 ${colorClasses}`}>
-                           {isExpense ? 'Chi' : isIncome ? 'Thu' : (type === 'DEBT_IN' ? 'VAY' : type === 'DEBT_OUT' ? 'TRẢ/CHO VAY' : type)}
+                          {isExpense ? 'Chi' : isIncome ? 'Thu' : (type === 'DEBT_IN' ? 'VAY' : type === 'DEBT_OUT' ? 'TRẢ/CHO VAY' : type)}
                         </span>
                         {fmtDate(t.transaction_date)} • <span className="font-medium text-slate-600">{walletName}</span>
                         {t.note ? ` • ${t.note}` : ''}
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center justify-between sm:justify-end gap-4 text-right w-full sm:w-auto">
                     <div>
                       <p className={`font-bold ${amountClasses}`}>
                         {sign}{fmtAmt(t.amount)}
                       </p>
                     </div>
-                    <button 
+                    <button
                       onClick={() => handleDelete(t.id)}
                       className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                       title="Xóa giao dịch"
@@ -363,12 +363,12 @@ export default function Transactions() {
                 <X size={18} />
               </button>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              
+
               <div className="space-y-1.5">
                 <Label htmlFor="modalWalletId">Từ ví</Label>
-                <select 
+                <select
                   id="modalWalletId"
                   className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={modalWalletId}
@@ -383,19 +383,17 @@ export default function Transactions() {
               <div className="space-y-1.5">
                 <Label>Loại giao dịch</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  <div 
-                    onClick={() => setFormData({...formData, type: "EXPENSE"})}
-                    className={`text-center p-2 rounded-lg border text-sm cursor-pointer font-medium transition-colors ${
-                      formData.type === "EXPENSE" ? "border-red-500 bg-red-50 text-red-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
+                  <div
+                    onClick={() => setFormData({ ...formData, type: "EXPENSE" })}
+                    className={`text-center p-2 rounded-lg border text-sm cursor-pointer font-medium transition-colors ${formData.type === "EXPENSE" ? "border-red-500 bg-red-50 text-red-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
                   >
                     Khoản chi
                   </div>
-                  <div 
-                    onClick={() => setFormData({...formData, type: "INCOME"})}
-                    className={`text-center p-2 rounded-lg border text-sm cursor-pointer font-medium transition-colors ${
-                      formData.type === "INCOME" ? "border-green-500 bg-green-50 text-green-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
+                  <div
+                    onClick={() => setFormData({ ...formData, type: "INCOME" })}
+                    className={`text-center p-2 rounded-lg border text-sm cursor-pointer font-medium transition-colors ${formData.type === "INCOME" ? "border-green-500 bg-green-50 text-green-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
                   >
                     Khoản thu
                   </div>
@@ -404,11 +402,11 @@ export default function Transactions() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="categoryId">Danh mục</Label>
-                <select 
+                <select
                   id="categoryId"
                   className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={formData.categoryId}
-                  onChange={(e) => setFormData({...formData, categoryId: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
                   required
                 >
                   <option value="" disabled>-- Chọn danh mục --</option>
@@ -420,35 +418,35 @@ export default function Transactions() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="amount">Số tiền (₫)</Label>
-                <Input 
-                  id="amount" 
+                <Input
+                  id="amount"
                   type="number"
                   min="0"
                   value={formData.amount}
-                  onChange={(e) => setFormData({...formData, amount: e.target.value})}
-                  required 
+                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  required
                 />
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="transaction_date">Ngày giao dịch</Label>
-                <Input 
-                  id="transaction_date" 
+                <Input
+                  id="transaction_date"
                   type="date"
                   value={formData.transaction_date}
-                  onChange={(e) => setFormData({...formData, transaction_date: e.target.value})}
-                  required 
+                  onChange={(e) => setFormData({ ...formData, transaction_date: e.target.value })}
+                  required
                 />
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="note">Ghi chú</Label>
-                <Input 
-                  id="note" 
+                <Input
+                  id="note"
                   type="text"
                   placeholder="Đi ăn, mua sắm..."
                   value={formData.note}
-                  onChange={(e) => setFormData({...formData, note: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                 />
               </div>
 

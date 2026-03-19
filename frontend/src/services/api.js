@@ -25,7 +25,10 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Don't retry refresh-token endpoint to prevent infinite loop
+    const isRefreshTokenRequest = originalRequest.url?.endsWith('/auth/refresh-token');
+    
+    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshTokenRequest) {
       
 
       if (isRefreshing) {
@@ -52,6 +55,7 @@ api.interceptors.response.use(
           })
           .catch((err) => {
             processQueue(err, null);
+            isRefreshing = false;
             window.location.href = "/auth";
             reject(err);
           })

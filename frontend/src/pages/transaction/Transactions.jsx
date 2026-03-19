@@ -117,8 +117,9 @@ export default function Transactions() {
 
     try {
       setIsSubmitting(true);
+      console.log("Submitting transaction with data:", { ...formData, walletId: modalWalletId });
       const payload = {
-        categoryId: Number(formData.categoryId),
+        categoryId: formData.categoryId,
         type: formData.type,
         amount: Number(formData.amount),
         transaction_date: formData.transaction_date,
@@ -272,7 +273,7 @@ export default function Transactions() {
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredTransactions.map((t) => {
-              const isExpense = t.type === 'expense';
+              const isExpense = t.type === 'EXPENSE';
               const cat = categories.find(c => c.id == t.category_id);
               const walletName = wallets.find(w => w.id == t.wallet_id)?.name || "?";
               
@@ -344,17 +345,17 @@ export default function Transactions() {
                 <Label>Loại giao dịch</Label>
                 <div className="grid grid-cols-2 gap-2">
                   <div 
-                    onClick={() => setFormData({...formData, type: "expense"})}
+                    onClick={() => setFormData({...formData, type: "EXPENSE"})}
                     className={`text-center p-2 rounded-lg border text-sm cursor-pointer font-medium transition-colors ${
-                      formData.type === "expense" ? "border-red-500 bg-red-50 text-red-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      formData.type === "EXPENSE" ? "border-red-500 bg-red-50 text-red-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     }`}
                   >
                     Khoản chi
                   </div>
                   <div 
-                    onClick={() => setFormData({...formData, type: "income"})}
+                    onClick={() => setFormData({...formData, type: "INCOME"})}
                     className={`text-center p-2 rounded-lg border text-sm cursor-pointer font-medium transition-colors ${
-                      formData.type === "income" ? "border-green-500 bg-green-50 text-green-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      formData.type === "INCOME" ? "border-green-500 bg-green-50 text-green-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     }`}
                   >
                     Khoản thu

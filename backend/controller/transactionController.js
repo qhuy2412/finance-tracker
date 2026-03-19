@@ -14,7 +14,8 @@ const getAllTransactionsByWalletId = async (req, res) => {
 };
 const createNormalTransaction = async (req, res) => {
     const userId = req.user.id;
-    const {walletId,categoryId,type, amount, transaction_date, note} = req.body;
+    const walletId = req.params.walletId;
+    const {categoryId,type, amount, transaction_date, note} = req.body;
     if (!type || amount === undefined || !transaction_date || !categoryId || !walletId) {
         return res.status(400).json({ message: "Type, amount, transaction_date, categoryId, and walletId are required!" });
     }

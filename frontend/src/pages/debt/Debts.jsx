@@ -341,14 +341,14 @@ export default function Debts() {
                     className={`text-center p-2 rounded-lg border text-sm cursor-pointer font-medium transition-colors ${formData.type === "BORROW" ? "border-red-500 bg-red-50 text-red-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                   >
-                    Đi vay (Mình nợ)
+                    Đi vay 
                   </div>
                   <div
                     onClick={() => setFormData({ ...formData, type: "LEND" })}
                     className={`text-center p-2 rounded-lg border text-sm cursor-pointer font-medium transition-colors ${formData.type === "LEND" ? "border-green-500 bg-green-50 text-green-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                   >
-                    Cho vay (Nợ mình)
+                    Cho vay 
                   </div>
                 </div>
               </div>

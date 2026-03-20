@@ -66,7 +66,7 @@ export default function AuthPage() {
                         </Button>
                         <p className="text-center text-xs text-slate-400">
                             Chưa có tài khoản?{" "}
-                            <span onClick={() => handleSwitch("login")} className="text-blue-600 cursor-pointer hover:underline font-medium">
+                            <span onClick={() => handleSwitch("register")} className="text-blue-600 cursor-pointer hover:underline font-medium">
                                 Đăng ký
                             </span>
                         </p>
@@ -100,7 +100,7 @@ export default function AuthPage() {
                         </Button>
                         <p className="text-center text-xs text-slate-400">
                             Đã có tài khoản?{" "}
-                            <span onClick={() => handleSwitch("register")} className="text-blue-600 cursor-pointer hover:underline font-medium">
+                            <span onClick={() => handleSwitch("login")} className="text-blue-600 cursor-pointer hover:underline font-medium">
                                 Đăng nhập
                             </span>
                         </p>

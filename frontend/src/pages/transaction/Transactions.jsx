@@ -411,6 +411,7 @@ export default function Transactions() {
                 >
                   <option value="" disabled>-- Chọn danh mục --</option>
                   {categories.map(c => (
+                    c.type === formData.type &&
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>

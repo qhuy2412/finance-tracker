@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, ArrowDownCircle, ArrowUpCircle, Trash2, Loader2, X, Wallet as WalletIcon, Search, FilterX, Activity, ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { Plus, ArrowDownCircle, ArrowUpCircle, Trash2, Edit, Loader2, X, Wallet as WalletIcon, Search, FilterX, Activity, ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getWallets } from "../../services/wallet.service";
-import { getTransactions, createTransaction, deleteTransaction } from "../../services/transaction.service";
+import { getTransactions, createTransaction, deleteTransaction, updateTransaction } from "../../services/transaction.service";
 import { getCategories } from "../../services/category.service";
 
 const fmtDate = (dateString) => {
@@ -30,6 +30,7 @@ export default function Transactions() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modalWalletId, setModalWalletId] = useState("");
+  const [editTransactionId, setEditTransactionId] = useState(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -93,22 +94,37 @@ export default function Transactions() {
     }
   };
 
-  const openModal = () => {
-    setFormData({
-      type: "expense",
-      amount: "",
-      categoryId: categories.length > 0 ? categories[0].id.toString() : "",
-      transaction_date: new Date().toISOString().slice(0, 10),
-      note: ""
-    });
-    // If a specific wallet is currently filtered, default to it
-    if (filterWallet !== "all") {
-      setModalWalletId(filterWallet);
+  const openModal = (transaction = null) => {
+    if (transaction && transaction.id) {
+      setEditTransactionId(transaction.id);
+      setModalWalletId(transaction.wallet_id.toString());
+      setFormData({
+        type: transaction.type,
+        amount: transaction.amount.toString(),
+        categoryId: transaction.category_id.toString(),
+        transaction_date: transaction.transaction_date.slice(0, 10),
+        note: transaction.note || ""
+      });
+    } else {
+      setEditTransactionId(null);
+      setFormData({
+        type: "EXPENSE",
+        amount: "",
+        categoryId: categories.length > 0 ? categories[0].id.toString() : "",
+        transaction_date: new Date().toISOString().slice(0, 10),
+        note: ""
+      });
+      if (filterWallet !== "all") {
+        setModalWalletId(filterWallet);
+      }
     }
     setIsModalOpen(true);
   };
 
-  const closeModal = () => setIsModalOpen(false);
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditTransactionId(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -126,7 +142,12 @@ export default function Transactions() {
         note: formData.note
       };
 
-      await createTransaction(modalWalletId, payload);
+      if (editTransactionId) {
+        await updateTransaction(editTransactionId, payload);
+      } else {
+        await createTransaction(modalWalletId, payload);
+      }
+
       await fetchAllTransactions(wallets);
       closeModal();
     } catch (error) {
@@ -337,13 +358,24 @@ export default function Transactions() {
                         {sign}{fmtAmt(t.amount)}
                       </p>
                     </div>
-                    <button
-                      onClick={() => handleDelete(t.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                      title="Xóa giao dịch"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex gap-2">
+                        {(type === 'EXPENSE' || type === 'INCOME') && (
+                          <button
+                            onClick={() => openModal(t)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                            title="Sửa giao dịch"
+                          >
+                            <Edit size={16} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDelete(t.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                          title="Xóa giao dịch"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -358,7 +390,7 @@ export default function Transactions() {
           <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm" onClick={closeModal} />
           <div className="relative w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <h3 className="font-semibold text-slate-800">Thêm giao dịch</h3>
+              <h3 className="font-semibold text-slate-800">{editTransactionId ? "Sửa giao dịch" : "Thêm giao dịch"}</h3>
               <button type="button" onClick={closeModal} className="text-slate-400 hover:text-slate-600">
                 <X size={18} />
               </button>
@@ -370,10 +402,11 @@ export default function Transactions() {
                 <Label htmlFor="modalWalletId">Từ ví</Label>
                 <select
                   id="modalWalletId"
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
                   value={modalWalletId}
                   onChange={(e) => setModalWalletId(e.target.value)}
                   required
+                  disabled={!!editTransactionId}
                 >
                   <option value="" disabled>-- Chọn ví --</option>
                   {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}

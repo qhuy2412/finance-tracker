@@ -105,4 +105,83 @@ const deleteTransaction = async (req, res) => {
     }
 };
 
-module.exports = { getAllTransactionsByWalletId, createNormalTransaction, deleteTransaction };
+const updateTransaction = async (req, res) => {
+    const transactionId = req.params.transactionId;
+    const userId = req.user.id;
+    const {categoryId, type, amount, transaction_date, note} = req.body;
+    
+    if (!type || amount === undefined || !transaction_date || !categoryId) {
+        return res.status(400).json({ message: "Type, amount, transaction_date, categoryId are required!" });
+    }
+    if (amount < 0) {
+        return res.status(400).json({ message: "Amount must be a positive number!" });
+    }
+    if(type !== 'INCOME' && type !== 'EXPENSE') {
+        return res.status(400).json({ message: "Type must be either INCOME or EXPENSE!" });
+    }
+
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // Get the original transaction
+        const oldTransaction = await Transaction.getTransactionById(transactionId, connection);
+        if (!oldTransaction) {
+            await connection.rollback();
+            return res.status(404).json({ message: "Transaction not found!" });
+        }
+
+        const walletId = oldTransaction.wallet_id;
+        const wallet = await Wallet.findById(walletId, connection);
+        
+        if (!wallet) {
+            await connection.rollback();
+            return res.status(404).json({ message: "Wallet not found!" });
+        }
+        if (wallet.user_id !== userId) {
+            await connection.rollback();
+            return res.status(403).json({ message: "You are not authorized to update this transaction!" });
+        }
+
+        //Check if category exists and belongs to user
+        const category = await Category.findById(categoryId,connection);
+        if (!category) {
+            await connection.rollback();
+            return res.status(404).json({ message: "Category not found!" });
+        }
+        if (category.user_id !== userId && category.user_id !== null) {
+            await connection.rollback();
+            return res.status(403).json({ message: "You are not authorized to use this category!" });
+        }
+
+        // Calculate balance differences
+        // First reverse the old transaction
+        const oldBalanceReversal = oldTransaction.type === 'INCOME' ? -oldTransaction.amount : oldTransaction.amount;
+        
+        // Then apply the new transaction
+        const newBalanceChange = type === 'INCOME' ? amount : -amount;
+        
+        const totalBalanceChange = parseFloat(oldBalanceReversal) + parseFloat(newBalanceChange);
+
+        // Check if wallet has enough balance (if this leads to negative balance)
+        if (parseFloat(wallet.balance) + totalBalanceChange < 0) {
+            await connection.rollback();
+            return res.status(400).json({ message: "Not enough balance in wallet for this update!" });
+        }
+
+        await Wallet.updateBalance(walletId, totalBalanceChange, connection);
+
+        // Update the transaction
+        await Transaction.updateTransaction(transactionId, categoryId, type, amount, transaction_date, note, connection);
+        
+        await connection.commit();
+        return res.status(200).json({ message: "Transaction updated successfully!" });
+    } catch (error) {
+        await connection.rollback();
+        return res.status(500).json({ message: error.message });
+    } finally {
+        connection.release();
+    }
+};
+
+module.exports = { getAllTransactionsByWalletId, createNormalTransaction, updateTransaction, deleteTransaction };

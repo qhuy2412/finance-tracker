@@ -11,6 +11,12 @@ const Transaction = {
         const [rows] = await connection.execute('SELECT * FROM transactions WHERE id = ?', [transactionId]);
         return rows[0];
     },
+    updateTransaction: async (transactionId, categoryId, type, amount, transaction_date, note, connection) => {
+        return await connection.execute(
+            'UPDATE transactions SET category_id = ?, type = ?, amount = ?, transaction_date = ?, note = ? WHERE id = ?',
+            [categoryId, type, amount, transaction_date, note, transactionId]
+        );
+    },
     deleteTransaction: async (transactionId, connection) => {
         return await connection.execute('DELETE FROM transactions WHERE id = ?', [transactionId]);
     }

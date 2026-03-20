@@ -14,3 +14,8 @@ export const deleteDebt = async (debtId) => {
     const response = await api.delete(`/debts/${debtId}`);
     return response.data;
 };
+
+export const payDebt = async (debtId, data) => {
+    const response = await api.post(`/debts/${debtId}/pay`, data);
+    return response.data;
+};

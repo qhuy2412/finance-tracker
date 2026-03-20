@@ -5,6 +5,7 @@ const debtController = require('../controller/debtController');
 
 router.get('/', authMiddleware, debtController.getAllDebts);
 router.post('/', authMiddleware, debtController.createDebt);
+router.post('/:debtId/pay', authMiddleware, debtController.payDebt);
 router.delete('/:debtId', authMiddleware, debtController.deleteDebt);
 
 module.exports = router;

@@ -3,7 +3,7 @@ import { Plus, HandCoins, Trash2, Loader2, X, ArrowUpRight, ArrowDownRight, Chec
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getDebts, createDebt, deleteDebt } from "../../services/debt.service";
+import { getDebts, createDebt, deleteDebt, payDebt } from "../../services/debt.service";
 import { getWallets } from "../../services/wallet.service";
 
 const fmtDate = (dateString) => {
@@ -20,9 +20,18 @@ export default function Debts() {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+  const [selectedDebtId, setSelectedDebtId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State
+  const [payFormData, setPayFormData] = useState({
+    wallet_id: "",
+    pay_amount: "",
+    transaction_date: new Date().toISOString().slice(0, 10),
+    note: ""
+  });
+
   const [formData, setFormData] = useState({
     wallet_id: "",
     type: "", // "BORROW" or "LEND"
@@ -119,6 +128,43 @@ export default function Debts() {
     }
   };
 
+  const openPayModal = (debt) => {
+    setSelectedDebtId(debt.id);
+    setPayFormData({
+      wallet_id: wallets.length > 0 ? wallets[0].id.toString() : "",
+      pay_amount: "",
+      transaction_date: new Date().toISOString().slice(0, 10),
+      note: ""
+    });
+    setIsPayModalOpen(true);
+  };
+
+  const closePayModal = () => {
+    setIsPayModalOpen(false);
+    setSelectedDebtId(null);
+  };
+
+  const handlePaySubmit = async (e) => {
+    e.preventDefault();
+    if (!payFormData.wallet_id) return alert("Vui lòng chọn ví!");
+    try {
+      setIsSubmitting(true);
+      await payDebt(selectedDebtId, {
+        wallet_id: payFormData.wallet_id,
+        pay_amount: Number(payFormData.pay_amount),
+        transaction_date: payFormData.transaction_date,
+        note: payFormData.note
+      });
+      await fetchInitialData();
+      closePayModal();
+    } catch (error) {
+      console.error("Failed to pay debt:", error);
+      alert(error.response?.data?.message || "Lỗi thanh toán khoản nợ!");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Calculations natively using backend type
   const totalBorrowed = debts.filter(d => d.type === 'BORROW').reduce((acc, curr) => acc + Number(curr.amount), 0);
   const totalLent = debts.filter(d => d.type === 'LEND').reduce((acc, curr) => acc + Number(curr.amount), 0);
@@ -204,13 +250,24 @@ export default function Debts() {
                       </p>
                       {parseFloat(debt.paid_amount) > 0 && <p className="text-xs text-slate-500 font-medium">Đã trả: {fmtAmt(debt.paid_amount)}</p>}
                     </div>
-                    <button
-                      onClick={() => handleDelete(debt.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                      title="Xóa khoản nợ"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex gap-2">
+                      {!isPaid && (
+                        <button
+                          onClick={() => openPayModal(debt)}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                          title="Thanh toán nợ"
+                        >
+                          <HandCoins size={16} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDelete(debt.id)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                        title="Xóa khoản nợ"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -218,6 +275,49 @@ export default function Debts() {
           </div>
         )}
       </div>
+
+      {/* Pay Modal Form */}
+      {isPayModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm" onClick={closePayModal} />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <h3 className="font-semibold text-slate-800">Thanh toán nợ / Thu nợ</h3>
+              <button type="button" onClick={closePayModal} className="text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handlePaySubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div className="space-y-1.5">
+                <Label htmlFor="pay_wallet_id">Ví thanh toán / nhận tiền</Label>
+                <select id="pay_wallet_id" className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={payFormData.wallet_id} onChange={(e) => setPayFormData({ ...payFormData, wallet_id: e.target.value })} required>
+                  <option value="" disabled>-- Chọn ví --</option>
+                  {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pay_amount">Số tiền thanh toán (₫)</Label>
+                <Input id="pay_amount" type="number" min="1" value={payFormData.pay_amount} onChange={(e) => setPayFormData({ ...payFormData, pay_amount: e.target.value })} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pay_transaction_date">Ngày thanh toán</Label>
+                <Input id="pay_transaction_date" type="date" value={payFormData.transaction_date} onChange={(e) => setPayFormData({ ...payFormData, transaction_date: e.target.value })} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pay_note">Ghi chú thêm</Label>
+                <Input id="pay_note" type="text" placeholder="Ghi chú giao dịch..." value={payFormData.note} onChange={(e) => setPayFormData({ ...payFormData, note: e.target.value })} />
+              </div>
+              <div className="pt-4 flex gap-2">
+                <Button type="button" variant="outline" onClick={closePayModal} className="flex-1">Hủy</Button>
+                <Button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 hover:bg-blue-700">
+                  {isSubmitting ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
+                  Xác nhận
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal Form */}
       {isModalOpen && (

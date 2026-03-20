@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/store/AuthContext";
+import { toast } from "react-toastify";
 
 export default function AuthPage() {
     const {login, register} = useAuth();
@@ -23,21 +24,23 @@ export default function AuthPage() {
     const handleLogin = async () => {
         try{
             await login(loginForm.email, loginForm.password);
+            toast.success("Đăng nhập thành công!");
             navigate("/dashboard");
         } catch (error) {
-            setError(error.response?.data?.message || "Đăng nhập thất bại");
+            toast.error(error.response?.data?.message || "Đăng nhập thất bại");
         }
     };
     const handleRegister = async () => {
         if(registerForm.password !== registerForm.confirmPassword) {
-            setError("Mật khẩu xác nhận không khớp");
+            toast.error("Mật khẩu xác nhận không khớp");
             return;
         }
         try{
             await register(registerForm.username, registerForm.email, registerForm.password);
+            toast.success("Đăng ký thành công!");
             navigate("/dashboard");
         } catch (error) {
-            setError(error.response?.data?.message || "Đăng ký thất bại");
+            toast.error(error.response?.data?.message || "Đăng ký thất bại");
         }
     };
     return (

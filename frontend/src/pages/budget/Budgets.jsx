@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getBudgetStatus, setBudget } from "../../services/budget.service";
 import { getCategories } from "../../services/category.service";
+import { toast } from "react-toastify";
 
 const fmtAmt = (n) => Number(n || 0).toLocaleString("vi-VN") + " ₫";
 
@@ -80,7 +81,8 @@ export default function Budgets() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.category_id || !formData.amount) {
-      return alert("Vui lòng điền đủ thông tin!");
+      toast.error("Vui lòng điền đủ thông tin!");
+      return;
     }
 
     try {
@@ -94,9 +96,10 @@ export default function Budgets() {
       await setBudget(payload);
       await fetchInitialData();
       closeModal();
+      toast.success("Thiết lập ngân sách thành công!");
     } catch (error) {
       console.error("Failed to save budget:", error);
-      alert(error.response?.data?.message || "Lỗi lưu ngân sách!");
+      toast.error(error.response?.data?.message || "Lỗi lưu ngân sách!");
     } finally {
       setIsSubmitting(false);
     }

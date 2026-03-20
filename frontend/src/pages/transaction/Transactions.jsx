@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { getWallets } from "../../services/wallet.service";
 import { getTransactions, createTransaction, deleteTransaction, updateTransaction } from "../../services/transaction.service";
 import { getCategories } from "../../services/category.service";
+import { toast } from "react-toastify";
 
 const fmtDate = (dateString) => {
   const date = new Date(dateString);
@@ -89,8 +90,10 @@ export default function Transactions() {
     try {
       await deleteTransaction(id);
       await fetchAllTransactions(wallets);
+      toast.success("Xóa giao dịch thành công!");
     } catch (error) {
       console.error("Failed to delete transaction:", error);
+      toast.error(error.response?.data?.message || "Lỗi xóa giao dịch!");
     }
   };
 
@@ -128,8 +131,14 @@ export default function Transactions() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!modalWalletId) return alert("Vui lòng chọn ví!");
-    if (!formData.categoryId) return alert("Vui lòng chọn danh mục!");
+    if (!modalWalletId) {
+      toast.error("Vui lòng chọn ví!");
+      return;
+    }
+    if (!formData.categoryId) {
+      toast.error("Vui lòng chọn danh mục!");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -144,14 +153,17 @@ export default function Transactions() {
 
       if (editTransactionId) {
         await updateTransaction(editTransactionId, payload);
+        toast.success("Cập nhật giao dịch thành công!");
       } else {
         await createTransaction(modalWalletId, payload);
+        toast.success("Thêm giao dịch thành công!");
       }
 
       await fetchAllTransactions(wallets);
       closeModal();
     } catch (error) {
       console.error("Failed to save transaction:", error);
+      toast.error(error.response?.data?.message || "Lỗi lưu giao dịch!");
     } finally {
       setIsSubmitting(false);
     }

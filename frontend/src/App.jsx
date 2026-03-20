@@ -10,6 +10,9 @@ import Budgets from "./pages/budget/Budgets";
 import Savings from "./pages/saving/Savings";
 import Transfers from "./pages/transfer/Transfers";
 
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   
@@ -38,6 +41,7 @@ export default function App() {
           <Route path="/transfers" element={<Transfers />} />
         </Route>
       </Routes>
+      <ToastContainer position="top-right" autoClose={3000} />
     </BrowserRouter>
   );
 }

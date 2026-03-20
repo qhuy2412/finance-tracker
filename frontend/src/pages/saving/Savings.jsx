@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getSavings, createSaving, updateSavingProgress, deleteSaving } from "../../services/saving.service";
+import { toast } from "react-toastify";
 
 const fmtDate = (dateString) => {
   if (!dateString) return "Không có hạn";
@@ -54,9 +55,10 @@ export default function Savings() {
     try {
       await deleteSaving(id);
       await fetchSavings();
+      toast.success("Xóa mục tiêu thành công!");
     } catch (error) {
       console.error("Failed to delete saving goal:", error);
-      alert(error.response?.data?.message || "Không thể xóa mục tiêu này!");
+      toast.error(error.response?.data?.message || "Không thể xóa mục tiêu này!");
     }
   };
 
@@ -85,7 +87,10 @@ export default function Savings() {
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.target_amount) return alert("Vui lòng điền đủ tên và mục tiêu!");
+    if (!formData.name || !formData.target_amount) {
+      toast.error("Vui lòng điền đủ tên và mục tiêu!");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -99,9 +104,10 @@ export default function Savings() {
       await createSaving(payload);
       await fetchSavings();
       closeCreateModal();
+      toast.success("Tạo mục tiêu tiết kiệm thành công!");
     } catch (error) {
       console.error("Failed to create saving goal:", error);
-      alert(error.response?.data?.message || "Lỗi tạo mục tiêu tiết kiệm!");
+      toast.error(error.response?.data?.message || "Lỗi tạo mục tiêu tiết kiệm!");
     } finally {
       setIsSubmitting(false);
     }
@@ -109,16 +115,20 @@ export default function Savings() {
 
   const handleAddFundsSubmit = async (e) => {
     e.preventDefault();
-    if (!addFundsAmount) return alert("Vui lòng nhập số tiền!");
+    if (!addFundsAmount) {
+      toast.error("Vui lòng nhập số tiền!");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
       await updateSavingProgress(activeGoal.id, { add_amount: Number(addFundsAmount) });
       await fetchSavings();
       closeAddFundsModal();
+      toast.success("Thêm tiền vào mục tiêu thành công!");
     } catch (error) {
       console.error("Failed to add funds:", error);
-      alert(error.response?.data?.error || "Lỗi thêm tiền vào mục tiêu!");
+      toast.error(error.response?.data?.error || "Lỗi thêm tiền vào mục tiêu!");
     } finally {
       setIsSubmitting(false);
     }

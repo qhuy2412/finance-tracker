@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getWallets, createWallet, updateWallet } from "../../services/wallet.service";
+import { toast } from "react-toastify";
 
 const WALLET_TYPES = {
   BANK: { id: "BANK", icon: CreditCard, label: "Ngân hàng", bg: "bg-blue-100 text-blue-600" },
@@ -73,14 +74,17 @@ export default function Wallets() {
 
       if (editingWallet) {
         await updateWallet(editingWallet.id, payload);
+        toast.success("Cập nhật ví thành công!");
       } else {
         await createWallet(payload);
+        toast.success("Thêm ví thành công!");
       }
       
       await fetchWallets();
       closeModal();
     } catch (error) {
       console.error("Failed to save wallet:", error);
+      toast.error(error.response?.data?.message || "Lỗi lưu ví!");
     } finally {
       setIsSubmitting(false);
     }

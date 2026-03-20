@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getWallets } from "../../services/wallet.service";
 import { getTransfers, createTransfer } from "../../services/transfer.service";
+import { toast } from "react-toastify";
 
 const fmtDate = (dateString) => {
   const date = new Date(dateString);
@@ -71,13 +72,28 @@ export default function Transfers() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.from_wallet_id || !formData.to_wallet_id) return alert("Vui lòng chọn đầy đủ ví chuyển và ví nhận!");
-    if (formData.from_wallet_id === formData.to_wallet_id) return alert("Hai ví không được trùng nhau!");
-    if (Number(formData.amount) <= 0) return alert("Số tiền phải lớn hơn 0!");
+    if (!formData.from_wallet_id || !formData.to_wallet_id) {
+      toast.error("Vui lòng chọn đầy đủ ví chuyển và ví nhận!");
+      return;
+    }
+    if (formData.from_wallet_id === formData.to_wallet_id) {
+      toast.error("Hai ví không được trùng nhau!");
+      return;
+    }
+    if (Number(formData.amount) <= 0) {
+      toast.error("Số tiền phải lớn hơn 0!");
+      return;
+    }
 
     const fromWalletInfo = wallets.find(w => w.id.toString() === formData.from_wallet_id);
-    if (!fromWalletInfo) return alert("Không tìm thấy ví nguồn!");
-    if (Number(fromWalletInfo.balance) < Number(formData.amount)) return alert("Ví nguồn không đủ số dư!");
+    if (!fromWalletInfo) {
+      toast.error("Không tìm thấy ví nguồn!");
+      return;
+    }
+    if (Number(fromWalletInfo.balance) < Number(formData.amount)) {
+      toast.error("Ví nguồn không đủ số dư!");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -90,9 +106,10 @@ export default function Transfers() {
       });
       await fetchInitialData(); // Refresh list & wallets
       closeModal();
+      toast.success("Tạo giao dịch chuyển tiền thành công!");
     } catch (error) {
       console.error("Failed to create transfer:", error);
-      alert(error.response?.data?.error || "Lỗi tạo giao dịch chuyển tiền!");
+      toast.error(error.response?.data?.error || "Lỗi tạo giao dịch chuyển tiền!");
     } finally {
       setIsSubmitting(false);
     }

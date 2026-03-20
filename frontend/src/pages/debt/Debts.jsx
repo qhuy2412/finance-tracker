@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getDebts, createDebt, deleteDebt, payDebt } from "../../services/debt.service";
 import { getWallets } from "../../services/wallet.service";
+import { toast } from "react-toastify";
 
 const fmtDate = (dateString) => {
   const date = new Date(dateString);
@@ -79,9 +80,10 @@ export default function Debts() {
     try {
       await deleteDebt(id);
       await fetchInitialData();
+      toast.success("Xóa khoản nợ thành công!");
     } catch (error) {
       console.error("Failed to delete debt:", error);
-      alert(error.response?.data?.message || "Không thể xóa khoản nợ này!");
+      toast.error(error.response?.data?.message || "Không thể xóa khoản nợ này!");
     }
   };
 
@@ -102,7 +104,10 @@ export default function Debts() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.wallet_id) return alert("Vui lòng chọn ví!");
+    if (!formData.wallet_id) {
+      toast.error("Vui lòng chọn ví!");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -120,9 +125,10 @@ export default function Debts() {
       await createDebt(payload);
       await fetchInitialData(); // update balance on wallets as well
       closeModal();
+      toast.success("Thêm khoản nợ thành công!");
     } catch (error) {
       console.error("Failed to save debt:", error);
-      alert(error.response?.data?.message || "Lỗi lưu khoản nợ!");
+      toast.error(error.response?.data?.message || "Lỗi lưu khoản nợ!");
     } finally {
       setIsSubmitting(false);
     }
@@ -146,7 +152,10 @@ export default function Debts() {
 
   const handlePaySubmit = async (e) => {
     e.preventDefault();
-    if (!payFormData.wallet_id) return alert("Vui lòng chọn ví!");
+    if (!payFormData.wallet_id) {
+      toast.error("Vui lòng chọn ví!");
+      return;
+    }
     try {
       setIsSubmitting(true);
       await payDebt(selectedDebtId, {
@@ -157,9 +166,10 @@ export default function Debts() {
       });
       await fetchInitialData();
       closePayModal();
+      toast.success("Thanh toán khoản nợ thành công!");
     } catch (error) {
       console.error("Failed to pay debt:", error);
-      alert(error.response?.data?.message || "Lỗi thanh toán khoản nợ!");
+      toast.error(error.response?.data?.message || "Lỗi thanh toán khoản nợ!");
     } finally {
       setIsSubmitting(false);
     }

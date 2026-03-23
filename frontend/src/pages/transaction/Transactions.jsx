@@ -349,14 +349,14 @@ export default function Transactions() {
                     <div>
                       <h3 className="font-semibold text-slate-800">
                         {cat ? cat.name : (
-                          type === 'TRANSFER' ? 'Chuyển khoản' :
+                          type === 'TRANSFER_IN' || type === 'TRANSFER_OUT' ? 'Giao dịch nội bộ' :
                             type === 'DEBT_IN' ? 'Đi vay / Thu nợ' :
                               type === 'DEBT_OUT' ? 'Cho vay / Trả nợ' : 'Khác'
                         )}
                       </h3>
                       <p className="text-xs text-slate-500 mt-1">
                         <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase mr-2 ${colorClasses}`}>
-                          {isExpense ? 'Chi' : isIncome ? 'Thu' : (type === 'DEBT_IN' ? 'VAY' : type === 'DEBT_OUT' ? 'TRẢ/CHO VAY' : type)}
+                          {isExpense ? 'Chi' : isIncome ? 'Thu' : (type === 'DEBT_IN' ? 'VAY' : type === 'DEBT_OUT' ? 'TRẢ/CHO VAY' : type === 'TRANSFER_IN' ? 'Chuyển vào' : type === 'TRANSFER_OUT' ? 'Chuyển đi' : 'KHÁC')}
                         </span>
                         {fmtDate(t.transaction_date)} • <span className="font-medium text-slate-600">{walletName}</span>
                         {t.note ? ` • ${t.note}` : ''}

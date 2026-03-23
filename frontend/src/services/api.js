@@ -20,6 +20,16 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
+// Request interceptor to add debugging
+api.interceptors.request.use(
+  (config) => {
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -50,9 +60,15 @@ api.interceptors.response.use(
             {},
             { withCredentials: true }
           )
-          .then(() => {
-            processQueue(null);
-            resolve(api(originalRequest));
+          .then((response) => {
+            // Check if refresh was successful
+            if (response.status === 200) {
+              processQueue(null);
+              // Retry the original request with updated token
+              api(originalRequest).then(resolve).catch(reject);
+            } else {
+              throw new Error('Token refresh failed');
+            }
           })
           .catch((err) => {
             processQueue(err, null);

@@ -128,7 +128,7 @@ export default function Savings() {
       toast.success("Thêm tiền vào mục tiêu thành công!");
     } catch (error) {
       console.error("Failed to add funds:", error);
-      toast.error(error.response?.data?.error || "Lỗi thêm tiền vào mục tiêu!");
+      toast.error(error.response?.data?.message || "Lỗi thêm tiền vào mục tiêu!");
     } finally {
       setIsSubmitting(false);
     }

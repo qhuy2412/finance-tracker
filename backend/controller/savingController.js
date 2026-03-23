@@ -28,7 +28,7 @@ const updateProgress = async (req, res) => {
             [id, userId]
         );
         if (!goals[0]) return res.status(404).json({ message: "Saving goal not found!" });
-
+        if (add_amount > goals[0].target_amount - goals[0].current_amount) return res.status(400).json({ message: "You cannot add more than the remaining amount!" });
         const newAmount = parseFloat(goals[0].current_amount) + parseFloat(add_amount);
         const status = newAmount >= parseFloat(goals[0].target_amount) ? 'COMPLETED' : 'IN_PROGRESS';
 

@@ -84,7 +84,7 @@ export default function AuthPage() {
                     <CardContent className="space-y-3">
                         <div className="space-y-1.5">
                             <Label>Tên người dùng</Label>
-                            <Input type="text" placeholder="Xuân Thưởng" value={registerForm.username} onChange={(e) => setRegisterForm({...registerForm, username: e.target.value})}/>
+                            <Input type="text" placeholder="yourname" value={registerForm.username} onChange={(e) => setRegisterForm({...registerForm, username: e.target.value})}/>
                         </div>
                         <div className="space-y-1.5">
                             <Label>Email</Label>
@@ -136,10 +136,10 @@ export default function AuthPage() {
                     </div>
 
                     <h3 className="text-white font-bold text-xl mb-3 leading-snug">
-                        {isRegister ? "Mừng bạn trở lại!" : "Chào mừng đến với FinTra!"}
+                        {!isRegister ? "Mừng bạn trở lại!" : "Chào mừng đến với FinTra!"}
                     </h3>
                     <p className="text-white/60 text-sm leading-relaxed mb-8 max-w-[180px]">
-                        {isRegister
+                        {!isRegister
                             ? "Đăng nhập để tiếp tục quản lý tài chính của bạn một cách dễ dàng và hiệu quả."
                             : "Đăng ký để bắt đầu quản lý tài chính của bạn một cách dễ dàng và hiệu quả."}
                     </p>
@@ -149,7 +149,7 @@ export default function AuthPage() {
                         onClick={() => setMode(isRegister ? "login" : "register")}
                         className="rounded-full border-white/40 text-white bg-transparent hover:bg-white/10 hover:text-white hover:border-white/60"
                     >
-                        {isRegister ? "Đăng ký" : "Đăng nhập"}
+                        {!isRegister ? "Đăng ký" : "Đăng nhập"}
                     </Button>
                 </div>
 

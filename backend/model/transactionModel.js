@@ -19,6 +19,10 @@ const Transaction = {
     },
     deleteTransaction: async (transactionId, connection) => {
         return await connection.execute('DELETE FROM transactions WHERE id = ?', [transactionId]);
+    },
+    getAllTransactionsByUserId: async (userId) => {
+        const [rows] = await db.execute('SELECT * FROM transactions WHERE user_id = ? order by transaction_date desc, created_date desc', [userId]);
+        return rows;
     }
 };
 module.exports = Transaction;

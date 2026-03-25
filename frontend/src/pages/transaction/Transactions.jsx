@@ -60,7 +60,7 @@ export default function Transactions() {
       // Concurrently fetch all transactions for all wallets to create a global list
       if (activeWallets.length > 0) {
         setModalWalletId(activeWallets[0].id.toString());
-        await fetchAllTransactions(activeWallets);
+        await fetchAllTransactions();
       }
     } catch (error) {
       console.error("Failed to fetch initial data:", error);
@@ -69,17 +69,10 @@ export default function Transactions() {
     }
   };
 
-  const fetchAllTransactions = async (activeWallets) => {
+  const fetchAllTransactions = async () => {
     try {
-      const promises = activeWallets.map(w => getTransactions(w.id));
-      const results = await Promise.all(promises);
-      let combined = [];
-      results.forEach(res => {
-        if (Array.isArray(res)) combined = [...combined, ...res];
-      });
-      // Sort by date descending
-      combined.sort((a, b) => new Date(b.transaction_date) - new Date(a.transaction_date));
-      setAllTransactions(combined);
+      const transactions = await getTransactions();
+      setAllTransactions(transactions || []);
     } catch (error) {
       console.error("Failed to fetch global transactions:", error);
     }
@@ -371,22 +364,24 @@ export default function Transactions() {
                       </p>
                     </div>
                     <div className="flex gap-2">
-                        {(type === 'EXPENSE' || type === 'INCOME') && (
-                          <button
-                            onClick={() => openModal(t)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                            title="Sửa giao dịch"
-                          >
-                            <Edit size={16} />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDelete(t.id)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                          title="Xóa giao dịch"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                      <button
+                        onClick={() => openModal(t)}
+                        disabled={type !== 'EXPENSE' && type !== 'INCOME'}
+                        className={`p-1.5 rounded-md transition-colors ${type === 'EXPENSE' || type === 'INCOME'
+                            ? "text-slate-400 hover:text-blue-600 hover:bg-blue-50" 
+                            : "text-slate-200 cursor-not-allowed" 
+                          }`}
+                        title={type === 'EXPENSE' || type === 'INCOME' ? "Sửa giao dịch" : "Không thể sửa loại giao dịch này"}
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(t.id)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                        title="Xóa giao dịch"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
                 </div>

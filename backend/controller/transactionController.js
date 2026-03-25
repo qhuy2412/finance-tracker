@@ -183,5 +183,14 @@ const updateTransaction = async (req, res) => {
         connection.release();
     }
 };
+const getTransactionsByUserId = async (req,res) => {
+    const userId = req.user.id;
+    try{
+        const transactions = await Transaction.getAllTransactionsByUserId(userId);
+        return res.status(200).json(transactions);
+    }catch(error){
+        return res.status(500).json({message: "Get all transactions failed!"});
+    }
+}
 
-module.exports = { getAllTransactionsByWalletId, createNormalTransaction, updateTransaction, deleteTransaction };
+module.exports = { getAllTransactionsByWalletId, createNormalTransaction, updateTransaction, deleteTransaction, getTransactionsByUserId};

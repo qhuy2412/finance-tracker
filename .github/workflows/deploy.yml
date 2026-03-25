@@ -2,7 +2,7 @@ name: FinTra CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ] # Tự động chạy khi bạn push code vào nhánh main
+    branches: [ main ] 
 
 jobs:
   build-and-deploy:
@@ -19,7 +19,6 @@ jobs:
 
       - name: Build Frontend
         run: |
-          # Giả sử folder frontend của bạn tên là 'frontend'
           cd frontend
           npm install
           npm run build
@@ -31,7 +30,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /home/root/fintra/finance-tracker 
+            cd /var/www/fintra/finance-tracker 
             
             git pull origin main
             

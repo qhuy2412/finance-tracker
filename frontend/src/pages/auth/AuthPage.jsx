@@ -83,19 +83,19 @@ export default function AuthPage() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                         <div className="space-y-1.5">
-                            <Label>Tên người dùng</Label>
+                            <Label>Tên người dùng<p style={{color: "red"}}>*</p></Label>
                             <Input type="text" placeholder="yourname" value={registerForm.username} onChange={(e) => setRegisterForm({...registerForm, username: e.target.value})}/>
                         </div>
                         <div className="space-y-1.5">
-                            <Label>Email</Label>
+                            <Label>Email<p style={{color: "red"}}>*</p></Label>
                             <Input type="email" placeholder="you@gmail.com" value={registerForm.email} onChange={(e) => setRegisterForm({...registerForm, email: e.target.value})} />
                         </div>
                         <div className="space-y-1.5">
-                            <Label>Password</Label>
+                            <Label>Mật khẩu <p style={{color: "red"}}>*</p></Label>
                             <Input type="password" placeholder="••••••••" value={registerForm.password} onChange={(e) => setRegisterForm({...registerForm, password: e.target.value})} />
                         </div>
                         <div className="space-y-1.5">
-                            <Label>Mật khẩu</Label>
+                            <Label>Xác nhận mật khẩu<p style={{color: "red"}}>*</p></Label> 
                             <Input type="password" placeholder="••••••••" value={registerForm.confirmPassword} onChange={(e) => setRegisterForm({...registerForm, confirmPassword: e.target.value})} />
                         </div>
                         <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={handleRegister}>

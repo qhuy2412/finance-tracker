@@ -1,4 +1,5 @@
 import axios from "axios";
+import { translateError } from "../utils/errorMessages";
 
 const baseURL = (import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
 
@@ -83,6 +84,13 @@ api.interceptors.response.use(
       }
     }
 
+    // Dịch message lỗi sang tiếng Việt trước khi reject
+    if (error.response?.data) {
+      const raw = error.response.data.message || error.response.data.error;
+      error.response.data.message = translateError(raw);
+    } else if (error.message === "Network Error") {
+      error.translatedMessage = translateError("Network Error");
+    }
     return Promise.reject(error);
   }
 );

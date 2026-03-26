@@ -109,7 +109,7 @@ export default function Transfers() {
       toast.success("Tạo giao dịch chuyển tiền thành công!");
     } catch (error) {
       console.error("Failed to create transfer:", error);
-      toast.error(error.response?.data?.error || "Lỗi tạo giao dịch chuyển tiền!");
+      toast.error(error.response?.data?.message || "Lỗi tạo giao dịch chuyển tiền!");
     } finally {
       setIsSubmitting(false);
     }

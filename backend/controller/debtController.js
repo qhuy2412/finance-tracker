@@ -22,6 +22,13 @@ const createDebt = async (req, res) => {
     if (amount <= 0) {
         return res.status(400).json({ message: "The amount must be greater than 0!" });
     }
+    if(!due_date) {
+        due_date = null;
+    } else {
+        if(due_date < transaction_date) {
+            return res.status(400).json({ message: "Due date must be greater than transaction date!" });
+        }
+    }
     const connection = await db.getConnection();
     try {
         await connection.beginTransaction();

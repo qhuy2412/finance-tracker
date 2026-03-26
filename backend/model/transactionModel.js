@@ -21,7 +21,7 @@ const Transaction = {
         return await connection.execute('DELETE FROM transactions WHERE id = ?', [transactionId]);
     },
     getAllTransactionsByUserId: async (userId) => {
-        const [rows] = await db.execute('SELECT * FROM transactions WHERE user_id = ? order by transaction_date desc, created_date desc', [userId]);
+        const [rows] = await db.execute('SELECT * FROM transactions WHERE user_id = ? order by transaction_date desc, created_at desc', [userId]);
         return rows;
     }
 };

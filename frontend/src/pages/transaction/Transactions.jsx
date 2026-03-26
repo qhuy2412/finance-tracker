@@ -7,6 +7,7 @@ import { getWallets } from "../../services/wallet.service";
 import { getTransactions, createTransaction, deleteTransaction, updateTransaction } from "../../services/transaction.service";
 import { getCategories } from "../../services/category.service";
 import { toast } from "react-toastify";
+import ConfirmModal from "../../components/ConfirmModal";
 
 const fmtDate = (dateString) => {
   const date = new Date(dateString);
@@ -32,6 +33,9 @@ export default function Transactions() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modalWalletId, setModalWalletId] = useState("");
   const [editTransactionId, setEditTransactionId] = useState(null);
+
+  // Confirm Delete Modal
+  const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
 
   // Form State
   const [formData, setFormData] = useState({
@@ -79,14 +83,19 @@ export default function Transactions() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa giao dịch này?")) return;
+    setConfirmModal({ open: true, id });
+  };
+
+  const confirmDelete = async () => {
     try {
-      await deleteTransaction(id);
+      await deleteTransaction(confirmModal.id);
       await fetchAllTransactions(wallets);
       toast.success("Xóa giao dịch thành công!");
     } catch (error) {
       console.error("Failed to delete transaction:", error);
       toast.error(error.response?.data?.message || "Lỗi xóa giao dịch!");
+    } finally {
+      setConfirmModal({ open: false, id: null });
     }
   };
 
@@ -504,6 +513,14 @@ export default function Transactions() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={() => setConfirmModal({ open: false, id: null })}
+        onConfirm={confirmDelete}
+        title="Xóa giao dịch"
+        message="Bạn có chắc chắn muốn xóa giao dịch này? Hành động này không thể hoàn tác."
+        confirmText="Xóa"
+      />
 
     </div>
   );

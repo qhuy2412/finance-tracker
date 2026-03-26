@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getSavings, createSaving, updateSavingProgress, deleteSaving } from "../../services/saving.service";
 import { toast } from "react-toastify";
+import ConfirmModal from "../../components/ConfirmModal";
 
 const fmtDate = (dateString) => {
   if (!dateString) return "Không có hạn";
@@ -23,6 +24,9 @@ export default function Savings() {
   const [isAddFundsModalOpen, setIsAddFundsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeGoal, setActiveGoal] = useState(null);
+
+  // Confirm Delete Modal
+  const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
 
   // Form State
   const [formData, setFormData] = useState({
@@ -51,14 +55,19 @@ export default function Savings() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa mục tiêu tiết kiệm này?")) return;
+    setConfirmModal({ open: true, id });
+  };
+
+  const confirmDelete = async () => {
     try {
-      await deleteSaving(id);
+      await deleteSaving(confirmModal.id);
       await fetchSavings();
       toast.success("Xóa mục tiêu thành công!");
     } catch (error) {
       console.error("Failed to delete saving goal:", error);
       toast.error(error.response?.data?.message || "Không thể xóa mục tiêu này!");
+    } finally {
+      setConfirmModal({ open: false, id: null });
     }
   };
 
@@ -400,6 +409,14 @@ export default function Savings() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={() => setConfirmModal({ open: false, id: null })}
+        onConfirm={confirmDelete}
+        title="Xóa mục tiêu tiết kiệm"
+        message="Bạn có chắc chắn muốn xóa mục tiêu này? Hành động này không thể hoàn tác."
+        confirmText="Xóa"
+      />
 
     </div>
   );

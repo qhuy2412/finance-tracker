@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { getDebts, createDebt, deleteDebt, payDebt } from "../../services/debt.service";
 import { getWallets } from "../../services/wallet.service";
 import { toast } from "react-toastify";
+import ConfirmModal from "../../components/ConfirmModal";
 
 const fmtDate = (dateString) => {
   const date = new Date(dateString);
@@ -24,6 +25,9 @@ export default function Debts() {
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [selectedDebtId, setSelectedDebtId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Confirm Delete Modal
+  const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
 
   // Form State
   const [payFormData, setPayFormData] = useState({
@@ -76,14 +80,19 @@ export default function Debts() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa khoản nợ này?")) return;
+    setConfirmModal({ open: true, id });
+  };
+
+  const confirmDelete = async () => {
     try {
-      await deleteDebt(id);
+      await deleteDebt(confirmModal.id);
       await fetchInitialData();
       toast.success("Xóa khoản nợ thành công!");
     } catch (error) {
       console.error("Failed to delete debt:", error);
       toast.error(error.response?.data?.message || "Không thể xóa khoản nợ này!");
+    } finally {
+      setConfirmModal({ open: false, id: null });
     }
   };
 
@@ -447,6 +456,14 @@ export default function Debts() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={() => setConfirmModal({ open: false, id: null })}
+        onConfirm={confirmDelete}
+        title="Xóa khoản nợ"
+        message="Bạn có chắc chắn muốn xóa khoản nợ này? Hành động này không thể hoàn tác."
+        confirmText="Xóa"
+      />
 
     </div>
   );

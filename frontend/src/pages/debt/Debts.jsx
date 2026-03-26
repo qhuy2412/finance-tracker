@@ -261,15 +261,14 @@ export default function Debts() {
                       {parseFloat(debt.paid_amount) > 0 && <p className="text-xs text-slate-500 font-medium">Đã trả: {fmtAmt(debt.paid_amount)}</p>}
                     </div>
                     <div className="flex gap-2">
-                      {!isPaid && (
-                        <button
-                          onClick={() => openPayModal(debt)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                          title="Thanh toán nợ"
-                        >
-                          <HandCoins size={16} />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => !isPaid && openPayModal(debt)}
+                        disabled={isPaid}
+                        className={`p-1.5 rounded-md transition-colors ${isPaid ? "text-slate-200 cursor-not-allowed" : "text-slate-400 hover:text-blue-600 hover:bg-blue-50"}`}
+                        title={isPaid ? "Đã thanh toán xong" : "Thanh toán nợ"}
+                      >
+                        <HandCoins size={16} />
+                      </button>
                       <button
                         onClick={() => handleDelete(debt.id)}
                         className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"

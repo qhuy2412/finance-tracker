@@ -29,16 +29,22 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
           script: |
-            cd /var/www/fintra/finance-tracker 
-            
+            # 1. Vào thư mục dự án và cập nhật code mới nhất
+            cd /var/www/fintra/finance-tracker
             git pull origin main
             
+            # 2. Cập nhật Backend
             cd backend
             npm install
-            pm2 restart fintra-api --update-env
+            # Dùng --name để đảm bảo PM2 nhận diện đúng tên app nếu Huy chưa set
+            pm2 restart fintra-api --update-env || pm2 start server.js --name fintra-api
             
-            sudo rm -rf /var/www/fintra/finance-tracker/frontend/dist/*
-            sudo cp -r ../frontend/dist/* /var/www/fintra/finance-tracker/frontend/dist/
+            # 3. Cập nhật Frontend (Đoạn này Huy lưu ý đường dẫn chuẩn)
+            # Giả sử file build nằm trong frontend/dist
+            sudo cp -r /var/www/fintra/finance-tracker/frontend/dist/* /var/www/html/fintra/ 
+            # (Thay /var/www/html/fintra/ bằng đường dẫn root của Nginx mà Huy đã cấu hình)
             
+            # 4. Làm mới Nginx
             sudo systemctl reload nginx

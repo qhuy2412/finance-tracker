@@ -9,7 +9,7 @@ const User = {
         return await db.query('INSERT INTO users (id,user_name, email, hash_password) VALUES (?,?, ?, ?)', [userId,username, email, password]);
     },
     findById: async (id) => {
-        const [results] = await db.query('SELECT user_name, email FROM users WHERE id = ?',[id]);
+        const [results] = await db.query('SELECT id, user_name, email FROM users WHERE id = ?',[id]);
         return results[0];
     }
 };

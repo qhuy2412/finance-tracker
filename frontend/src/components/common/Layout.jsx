@@ -1,4 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import ChatWidget from "./ChatWidget";
 import {
   LayoutDashboard,
   Wallet,
@@ -147,6 +148,8 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      <ChatWidget />
     </div>
   );
 }

@@ -13,6 +13,7 @@ const transferRoute = require("./router/transferRoute");
 const savingRoute = require("./router/savingRoute");
 const budgetRoute = require("./router/budgetRoute");
 const dashboardRoute = require("./router/dashboardRoute");
+const chatRoute = require("./router/chatRoute");
 
 const db = require("./config/db");
 const app = express();
@@ -37,6 +38,7 @@ app.use("/api/transfers", transferRoute);
 app.use("/api/savings", savingRoute);
 app.use("/api/budgets", budgetRoute);
 app.use("/api/dashboard", dashboardRoute);
+app.use("/api/chat", chatRoute);
 
 
 const PORT = process.env.PORT || 9999;

@@ -1,43 +1,56 @@
 const db = require("../config/db");
 
 const Chat = {
-    createSession: async () => {
+    // Tạo session mới
+    createSession: async (id, userId) => {
         return await db.execute(
-            'Insert Into chat_sessions(id,user_id) values(?,?)',[id,user_id]
+            'INSERT INTO chat_sessions (id, user_id) VALUES (?, ?)',
+            [id, userId]
         );
     },
-    getLastestSession: async (user_id) => {
+
+    // Lấy session mới nhất của user
+    getLatestSession: async (userId) => {
         const [rows] = await db.execute(
             'SELECT * FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1',
-            [user_id]
-
+            [userId]
         );
         return rows[0] || null;
     },
+
+    // Cập nhật timestamp session
     touchSession: async (id) => {
         return await db.execute(
             'UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [id])
-    },
-    saveMessage : async (id,session_id,role,content) => {
-        return await db.execute(
-            'INSERT INTO chat_messages (id,session_id, role, content) VALUES (?, ?, ?)',
-            [id,session_id, role, content]
+            [id]
         );
     },
-    getMessages : async (sessionId) => {
+
+    // Lưu 1 tin nhắn (user hoặc assistant)
+    saveMessage: async (id, sessionId, role, content) => {
+        return await db.execute(
+            'INSERT INTO chat_messages (id, session_id, role, content) VALUES (?, ?, ?, ?)',
+            [id, sessionId, role, content]
+        );
+    },
+
+    // Lấy tất cả tin nhắn của 1 session (tối đa 50)
+    getMessages: async (sessionId) => {
         const [rows] = await db.execute(
-            'SELECT * FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC Limit 50',
+            'SELECT role, content, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC LIMIT 50',
             [sessionId]
         );
         return rows;
     },
-    getSessionList : async (userId) => {
+
+    // Lấy danh sách sessions của user (tối đa 10 gần nhất)
+    getSessionList: async (userId) => {
         const [rows] = await db.execute(
-            'SELECT * FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC Limit 10',
+            'SELECT id, title, updated_at FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC LIMIT 10',
             [userId]
         );
         return rows;
     }
-}
+};
+
 module.exports = Chat;

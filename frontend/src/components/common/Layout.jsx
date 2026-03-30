@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import ChatWidget from "./ChatWidget";
+import ChatWidget from "./Chatwidget";
 import {
   LayoutDashboard,
   Wallet,

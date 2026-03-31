@@ -34,7 +34,7 @@ export default function ChatWidget() {
 
   async function loadSessions() {
     try {
-      const data = await chatApi.getSessions();
+      const data = await chatService.getSessions();
       setSessions(data);
       if (data.length > 0 && !currentSessionId) {
         await switchSession(data[0].id);
@@ -48,7 +48,7 @@ export default function ChatWidget() {
     setCurrentSessionId(sessionId);
     setShowHistory(false);
     try {
-      const msgs = await chatApi.getMessages(sessionId);
+      const msgs = await chatService.getMessages(sessionId);
       setMessages(msgs.length > 0 ? msgs : [{ role: "assistant", content: WELCOME }]);
     } catch {
       setMessages([{ role: "assistant", content: WELCOME }]);
@@ -57,7 +57,7 @@ export default function ChatWidget() {
 
   async function startNewSession() {
     try {
-      const { session_id } = await chatApi.createSession();
+      const { session_id } = await chatService.createSession();
       setCurrentSessionId(session_id);
       setMessages([{ role: "assistant", content: WELCOME }]);
       setShowHistory(false);
@@ -80,11 +80,24 @@ export default function ChatWidget() {
     setMessages((prev) => [...prev, { role: "assistant", content: "..." }]);
 
     try {
-      const { reply, session_id } = await chatApi.sendMessage(text, currentSessionId);
+      let sessionId = currentSessionId;
+      if (!sessionId) {
+        const created = await chatService.createSession();
+        sessionId = created?.data?.session_id;
+        if (sessionId) {
+          setCurrentSessionId(sessionId);
+          loadSessions();
+        }
+      }
 
-      if (!currentSessionId) {
+      if (!sessionId) {
+        throw new Error("No session id");
+      }
+
+      const { reply, session_id } = await chatService.sendMessage(text, sessionId);
+
+      if (!currentSessionId && session_id) {
         setCurrentSessionId(session_id);
-        loadSessions();
       }
 
       setMessages((prev) => [

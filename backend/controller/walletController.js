@@ -1,6 +1,7 @@
 const db = require("../config/db");
 const Wallet = require("../model/walletModel");
 const { v4: uuidv4 } = require('uuid');
+const financeService = require('../services/financeService');
 
 const getAllWallets = async (req, res) => {
     try {
@@ -15,21 +16,10 @@ const createWallet = async (req, res) => {
     try {
         const userId = req.user.id;
         const { name, type, balance } = req.body;
-        if (!name || !type || balance === undefined) {
-            return res.status(400).json({ message: "Name, type, and balance are required!" });
-        }
-        if (balance < 0) {
-            return res.status(400).json({ message: "Balance must be a positive number!" });
-        }
-        const existingWallet = await Wallet.findByName(userId, name);
-        if (existingWallet) {
-            return res.status(400).json({ message: "Wallet name already exists!" });
-        }
-        const walletId = uuidv4().trim();
-        await Wallet.createWallet(walletId, userId, name, type, balance);
-        return res.status(201).json({ message: "Wallet created successfully!" });
+        const result = await financeService.createWallet(userId, { name, type, balance });
+        return res.status(201).json(result);
     } catch (error) {
-        return res.status(500).json({ message: error.message });
+        return res.status(error.statusCode || 500).json({ message: error.message });
     }
 };
 const updateWallet = async (req, res) => {

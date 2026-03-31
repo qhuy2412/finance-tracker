@@ -1,29 +1,13 @@
 const db = require('../config/db');
 const { v4: uuidv4 } = require('uuid');
+const financeService = require('../services/financeService');
 const setBudget = async (req, res) => {
     const userId = req.user.id;
-    const { category_id, amount, month, year } = req.body;
-
-    if (!category_id || !amount || !month || !year) {
-        return res.status(400).json({ message: "Lack of required field!" });
-    }
-
-    // Convert month and year to a date string YYYY-MM-01 matching the period column
-    const period = `${year}-${String(month).padStart(2, '0')}-01`;
-
     try {
-        const sql = `
-            INSERT INTO budgets (id, user_id, category_id, amount, period) 
-            VALUES (?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE amount = VALUES(amount)
-        `;
-        const id = uuidv4().trim();
-        await db.execute(sql, [id, userId, category_id, amount, period]);
-
-        res.status(201).json({ message: "Budget set successfully!" });
+        const result = await financeService.setBudget(userId, req.body);
+        return res.status(201).json(result);
     } catch (error) {
-        console.error("Error setting budget:", error.message);
-        res.status(500).json({ error: error.message });
+        return res.status(error.statusCode || 500).json({ message: error.message });
     }
 };
 const getBudgetStatus = async (req, res) => {

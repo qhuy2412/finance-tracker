@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const Debt = require("../model/debtModel");
 const { v4: uuidv4 } = require('uuid');
+const financeService = require('../services/financeService');
 const getAllDebts = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -12,71 +13,11 @@ const getAllDebts = async (req, res) => {
 };
 const createDebt = async (req, res) => {
     const userId = req.user.id;
-    const { wallet_id, person_name, type, amount, due_date, note, transaction_date } = req.body;
-    if (!wallet_id || !person_name || !type || !amount || !transaction_date) {
-        return res.status(400).json({ message: "Lack of required field!" });
-    }
-    if (type !== 'BORROW' && type !== 'LEND') {
-        return res.status(400).json({ message: "The type of debt is invalid!" });
-    }
-    if (amount <= 0) {
-        return res.status(400).json({ message: "The amount must be greater than 0!" });
-    }
-    if(!due_date) {
-        due_date = null;
-    } else {
-        if(due_date < transaction_date) {
-            return res.status(400).json({ message: "Due date must be greater than transaction date!" });
-        }
-    }
-    const connection = await db.getConnection();
     try {
-        await connection.beginTransaction();
-        const [wallets] = await connection.execute(
-            'SELECT * FROM wallets WHERE id = ? AND user_id = ? FOR UPDATE',
-            [wallet_id, userId]
-        );
-        const wallet = wallets[0];
-        if (!wallet) {
-            await connection.rollback();
-            return res.status(400).json({ message: "Wallet not found!" });
-        }
-        if (type === 'LEND' && parseFloat(wallet.balance) < parseFloat(amount)) {
-            await connection.rollback();
-            return res.status(400).json({ message: "Balance of this wallet is not enough for lend!" });
-        }
-        const debtId = uuidv4().trim();
-        await connection.execute(
-            `INSERT INTO debts 
-            (id, user_id, wallet_id, person_name, type, amount, paid_amount, status, due_date, note) 
-            VALUES (?, ?, ?, ?, ?, ?, 0, 'UNPAID', ?, ?)`,
-            [debtId, userId, wallet_id, person_name, type, amount, due_date || null, note || '']
-        );
-        const balanceChange = type === 'BORROW' ? parseFloat(amount) : -parseFloat(amount);
-        await connection.execute(
-            'UPDATE wallets SET balance = balance + ? WHERE id = ?',
-            [balanceChange, wallet_id]
-        );
-        const transId = uuidv4().trim();
-        const transType = type === 'BORROW' ? 'DEBT_IN' : 'DEBT_OUT';
-        const transNote = type === 'BORROW' ? `Vay tiền từ: ${person_name}` : `Cho vay: ${person_name}`;
-
-        await connection.execute(
-            `INSERT INTO transactions 
-            (id, user_id, wallet_id, debt_id, type, amount, transaction_date, note) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [transId, userId, wallet_id, debtId, transType, amount, transaction_date, note || transNote]
-        );
-        await connection.commit();
-        return res.status(201).json({
-            message: "Create debt and update wallet successfully!",
-            data: { id: debtId, type, amount, status: 'UNPAID' }
-        });
+        const result = await financeService.createDebt(userId, req.body);
+        return res.status(201).json(result);
     } catch (error) {
-        await connection.rollback();
-        return res.status(500).json({ message: error.message });
-    } finally {
-        connection.release();
+        return res.status(error.statusCode || 500).json({ message: error.message });
     }
 };
 const payDebt = async (req, res) => {

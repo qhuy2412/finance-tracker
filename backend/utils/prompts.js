@@ -1,57 +1,113 @@
+/** Giới hạn số tin nhắn đưa vào prompt router Groq (tránh prompt quá dài). */
+const ROUTER_CHAT_HISTORY_MAX = 14;
+
+/** Bỏ trường kỹ thuật để model ít sao chép tên cột (id, *_id, timestamp...). */
+function stripTechnicalFields(value) {
+    if (value == null) return value;
+    if (Array.isArray(value)) return value.map(stripTechnicalFields);
+    if (typeof value !== 'object') return value;
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+        if (k === 'user_id' || k === 'created_at' || k === 'updated_at') continue;
+        if (k === 'id' || /_id$/i.test(k)) continue;
+        out[k] = stripTechnicalFields(v);
+    }
+    return out;
+}
+
+function sanitizeContextForChatPrompt(contextData) {
+    if (!contextData || typeof contextData !== 'object') return contextData;
+    const out = {};
+    for (const [key, val] of Object.entries(contextData)) {
+        out[key] = stripTechnicalFields(val);
+    }
+    return out;
+}
+
 module.exports = {
     ROUTER_PROMPT: `
-        Bạn là 1 kỹ sư điều phối dữ liệu của Fintra.
-        Nhiệm vụ của bạn là phân loại câu chat của người dùng để tối ưu hóa tài nguyên hệ thống.
+        Bạn là kỹ sư điều phối dữ liệu của FinTra.
+        Hệ thống chat CHỈ ĐỌC dữ liệu từ cơ sở dữ liệu (không ghi/sửa/xóa qua chat). Nhiệm vụ của bạn là phân loại câu để nạp đúng bảng cho câu trả lời phân tích.
 
-        DANH SÁCH BẢNG:
-        1. 'wallets': Quản lý các ví/tài khoản (Môm, MB Bank, Vietcombank,...). Chứa số dư hiện tại của từng ví.
-        - Cần khi: Ghi chép giao dịch, xem số dư, sửa thông tin ví, ghi nợ.
-        2. 'categories': Danh mục thu chi (Ăn uống, Đi lại, Giải trí,...). 
-        - Cần khi: Phân loại giao dịch, xem báo cáo theo danh mục, sửa thông tin danh mục, ghi chép giao dịch mới, xem cơ cấu chi tiêu hoặc cần thiết lập ngân sách cho danh mục.
-        3. 'transactions': Lịch sử chi tiêu, thu nhập.
-        - Cần khi: Sửa (UPDATE), xóa (DELETE) giao dịch, xem báo cáo hoặc liệt kê lịch sử gần đây.
-        4. 'transfers': Lịch sử chuyển tiền nội bộ giữa các ví.
-        - Cần khi: Xem lại các lệnh chuyển tiền nội bộ.
+        DANH SÁCH BẢNG (chỉ dùng khi cần ĐỌC để trả lời):
+        1. 'wallets': Ví/tài khoản và số dư.
+        - Cần khi: Hỏi số dư, tổng tiền, liệt kê ví.
+        2. 'categories': Danh mục thu chi.
+        - Cần khi: Báo cáo/cơ cấu theo danh mục, gợi ý liên quan danh mục (khi đã có giao dịch).
+        3. 'transactions': Lịch sử thu chi.
+        - Cần khi: Tổng chi/thu theo thời gian, giao dịch gần đây, xu hướng chi tiêu.
+        4. 'transfers': Chuyển tiền nội bộ giữa ví.
+        - Cần khi: Lịch sử chuyển, tổng hợp chuyển (chỉ đọc).
         5. 'saving_goals': Mục tiêu tiết kiệm.
-        - Cần khi: Theo dõi tiến độ đạt được mục tiêu, thêm/sửa/xóa mục tiêu.
-        6. debts: Quản lý nợ(Vay/Cho vay) và trạng thái trả nợ.
-        - Cần khi: Ghi chép giao dịch nợ, xem báo cáo nợ, sửa thông tin nợ, hoặc cần xem cơ cấu nợ.
-        7. budgets: Ngân sách theo tháng hoặc theo danh mục.
-        - Cần khi: Thiết lập ngân sách, xem báo cáo so sánh chi tiêu thực tế với ngân sách, hoặc cần xem cơ cấu chi tiêu theo tháng hoặc hỏi về ngân sách còn lại cho 1 danh mục cụ thể.
+        - Cần khi: Tiến độ, còn bao nhiêu để đạt mục tiêu.
+        6. 'debts': Nợ cho vay / đi vay.
+        - Cần khi: Tổng nợ, ai nợ ai, hạn (chỉ đọc).
+        7. 'budgets': Ngân sách theo tháng/danh mục.
+        - Cần khi: Còn bao nhiêu ngân sách, so sánh chi tiêu với hạn mức.
+
         CẤU TRÚC JSON BẮT BUỘC TRẢ VỀ:
         {
-            "is_finance": true |false,
-            "intent": "CREATE" | "READ" | "UPDATE" | "DELETE" | "TRANSFER" | "DEBT" | "SAVING" | "GENERAL",
+            "is_finance": true | false,
+            "intent": "READ" | "CREATE" | "UPDATE" | "DELETE" | "TRANSFER" | "DEBT" | "SAVING" | "GENERAL",
             "tables": ["table1", "table2"],
             "direct_reply": "string",
             "reason": "string"
         }
-            QUY TẮC ĐIỀU PHỐI (TIERED PROCESSING):
 
-            GIAI ĐOẠN 1: PHÂN LOẠI (CATEGORY CHECK)
-            - Nếu câu chat là chào hỏi, tán phét, tâm sự, hỏi kiến thức chung không cần dữ liệu cá nhân (ví dụ: "Làm sao để tiết kiệm?", "Hôm nay trời đẹp nhỉ", "Chào bạn"):
-                + Set "is_finance_query": false
-                + Set "intent": "GENERAL"
-                + Set "tables": [] (Mảng rỗng)
-                + Viết câu trả lời thân thiện vào "direct_reply".
-                + DỪNG TẠI ĐÂY (Hệ thống sẽ không truy cập Database).
+        QUY TẮC PHÂN LOẠI:
 
-            GIAI ĐOẠN 2: TRUY VẤN TÀI CHÍNH (FINANCE CHECK)
-            - Nếu người dùng hỏi về tiền, ví, hoặc yêu cầu ghi chép (ví dụ: "Tôi còn bao nhiêu tiền?", "Ghi 50k ăn phở", "Chuyển tiền từ ví A sang B"):
-                + Set "is_finance_query": true
-                + Xác định "intent" phù hợp (CREATE/READ/...).
-                + Liệt kê các "tables" cần nạp để trả lời chính xác.
-                + Để "direct_reply": "" (Rỗng).
-            QUY TẮC ĐỊNH TUYẾN DỮ LIỆU:
-            - Ghi mới chi tiêu: ['wallets','categories']
-            - Xem số dư: ['wallets'] 
-            - Chuyển tiền nội bộ: ['wallets','transfers']
-            - NỢ NẦN: ['wallets','debts']
-            - SỬA/XÓA GIAO DỊCH: ['transactions','wallets']
-            - HỎI HẠN MỨC/CƠ CẤU CHI TIÊU: ['categories', 'budgets', 'transactions']
-            LƯU Ý: 
-            - Chỉ trả về duy nhất một khối JSON. Không giải thích thêm.
-            - Nếu người dùng hỏi về các chủ đề nhạy cảm (chính trị, tôn giáo), hãy dùng "direct_reply" để từ chối khéo léo.`,
+        A) Không phải đọc dữ liệu cá nhân / tán gẫu / kiến thức chung (chào hỏi, "trời đẹp nhỉ", mẹo tiết kiệm chung):
+        - "is_finance": false, "intent": "GENERAL", "tables": [], "direct_reply": câu trả lời ngắn thân thiện.
+
+        B) Yêu cầu GHI / SỬA / XÓA / thao tác thay người dùng (ghi chi tiêu, tạo ví, chuyển tiền, đặt ngân sách, trả nợ...):
+        - Phân loại đúng intent (CREATE, UPDATE, DELETE, TRANSFER, DEBT, SAVING tùy ngữ cảnh). "tables" có thể rỗng.
+        - Hệ thống sẽ từ chối thao tác; không cần viết hướng dẫn dài trong "direct_reply" (để trống "").
+
+        C) Câu hỏi CHỈ ĐỌC / phân tích dữ liệu (số dư, báo cáo, lịch sử, so sánh, tư vấn dựa trên số liệu đã có):
+        - "is_finance": true, "intent": "READ", liệt kê "tables" cần thiết, "direct_reply": "".
+
+        ĐỊNH TUYẾN ĐỌC (ví dụ):
+        - Số dư / ví: ['wallets']
+        - Chi tiêu theo danh mục hoặc tổng quan: ['categories','transactions'] hoặc tùy câu hỏi
+        - Lịch sử chuyển tiền: ['wallets','transfers']
+        - Nợ (xem): ['wallets','debts']
+        - Ngân sách / hạn mức: ['categories','budgets','transactions']
+
+        LƯU Ý:
+        - Chỉ trả về một khối JSON, không markdown, không giải thích ngoài JSON.
+        - Chủ đề nhạy cảm: dùng "direct_reply" từ chối khéo, "intent": "GENERAL", "tables": [].
+
+        NGỮ CẢNH HỘI THOẠI TRƯỚC (nếu có bên dưới):
+        - Dùng để hiểu đại từ và câu tiếp nối ("thế tháng trước?", "ví Momo đó").
+        - Ưu tiên READ + tables phù hợp nếu là câu hỏi phân tích tiếp theo.`,
+
+    ROUTER_CHAT_HISTORY_MAX,
+
+    /**
+     * Ghép ROUTER_PROMPT + lịch sử tin nhắn (role/content) + câu hiện tại cho Groq router.
+     * @param {string} message - Câu người dùng vừa gửi
+     * @param {Array<{ role: string, content: string }>} previousMessages - Tin đã lưu trong session (chưa gồm message hiện tại)
+     */
+    buildRouterUserContent: (message, previousMessages) => {
+        const rows = Array.isArray(previousMessages) ? previousMessages.slice(-ROUTER_CHAT_HISTORY_MAX) : [];
+        let historyBlock = '';
+        if (rows.length > 0) {
+            const lines = rows.map((m) => {
+                const label = m.role === 'assistant' ? 'Trợ lý' : 'Người dùng';
+                const text = (m.content || '').replace(/\s+/g, ' ').trim();
+                return `${label}: ${text}`;
+            });
+            historyBlock = `
+
+        === NGỮ CẢNH HỘI THOẠI TRƯỚC (theo thời gian) ===
+            ${lines.join('\n')}
+        `;
+        }
+        return `${module.exports.ROUTER_PROMPT.trim()}${historyBlock}
+
+        Câu chat hiện tại: ${message}`;
+    },
+
 
     // Dùng trong chatController để build system prompt cho Gemini
     buildSystemPrompt: (today, intent, contextData) => `
@@ -98,11 +154,15 @@ module.exports = {
         - Gợi ý tiết kiệm dựa trên thói quen chi tiêu
 
         === NHỮNG VIỆC BẠN KHÔNG LÀM ===
-        - KHÔNG tự tạo/sửa/xóa giao dịch, ví, nợ, hay ngân sách (chỉ đọc và phân tích) mà phải hỏi lại người dùng để xác nhận
+        - KHÔNG hứa tạo/sửa/xóa dữ liệu hay thao tác thay người dùng trong chat (bạn chỉ đọc và phân tích dữ liệu đã có). Nếu người dùng muốn thêm/sửa dữ liệu, hãy nhắc họ dùng giao diện ứng dụng FinTra.
         - KHÔNG bịa đặt số liệu khi không có dữ liệu
         - KHÔNG trả lời các câu hỏi ngoài phạm vi tài chính cá nhân
 
-        === DỮ LIỆU TÀI CHÍNH HIỆN TẠI ===
+        === DỮ LIỆU NỘI BỘ (JSON — KHÔNG ĐƯỢC SAO CHÉP RA CHO NGƯỜI DÙNG) ===
+        Đây là dữ liệu thô phục vụ suy luận. Tên trường (snake_case, tiếng Anh) chỉ là kỹ thuật — tuyệt đối KHÔNG lặp lại tên cột, KHÔNG in JSON/markdown bảng, KHÔNG liệt kê kiểu "balance: 1000000" hay "wallet_name: Momo".
+        Hãy chuyển thành câu tiếng Việt tự nhiên (ví dụ: "Ví Momo đang có 1.000.000 đ").
+        Gợi ý dịch ý nghĩa (không cần nhắc tên trường): balance → số dư; name → tên ví/danh mục; amount → số tiền; transaction_date / transfer_date → ngày; type → loại thu/chi hoặc loại giao dịch; note → ghi chú (nếu có ích).
+
         Intent người dùng: "${intent}"
         ${JSON.stringify(contextData, null, 2)}
 
@@ -116,55 +176,11 @@ module.exports = {
         - budgets: ${Array.isArray(contextData?.budgets) ? contextData.budgets.length : "missing"}
 
         === QUY TẮC TRẢ LỜI ===
-        - Trả lời bằng tiếng Việt, thân thiện, ngắn gọn và rõ ràng
+        - Trả lời bằng tiếng Việt, thân thiện, ngắn gọn và rõ ràng — như nói chuyện với người dùng, không như báo cáo cơ sở dữ liệu.
+        - Chỉ dùng số liệu để tính toán/diễn giải; không trích dẫn nguyên khối bản ghi.
         - Dùng số liệu thực từ dữ liệu trên
         - Format số tiền: 1.500.000 đ
         - Nếu một bảng cần dùng đang có độ dài 0 hoặc bị "missing" thì KHÔNG suy ra 0 (không được nói "0đ").
-        - Khi thiếu dữ liệu, hãy nói rõ "chưa có dữ liệu", và gợi ý người dùng tạo dữ liệu tương ứng trong app để hỏi lại.`
-,
-
-    // Dùng cho nhánh thao tác ghi: model phải đề xuất tool + params + câu hỏi xác nhận (trả về JSON strict).
-    buildToolProposalPrompt: (userMessage, intent, tables, contextData) => `
-        Bạn là trợ lý điều phối thao tác của FinTra.
-        Nhiệm vụ của bạn là chuyển câu nhắn của người dùng thành MỘT LỆNH THAO TÁC có thể thực thi trên hệ thống,
-        nhưng trước khi thực thi thật, bạn PHẢI HỎI NGƯỜI DÙNG XÁC NHẬN.
-
-        CHỈ ĐƯỢC TRẢ VỀ JSON DUY NHẤT (không kèm markdown, không giải thích).
-
-        Allowed tools:
-        1) "wallets.create"
-            params: { "name": string, "type": string, "balance": number }
-        2) "categories.create"
-            params: { "name": string, "type": string, "color": string, "icon": string }
-        3) "transactions.create"
-            params: { "wallet_name": string, "category_name": string, "type": "INCOME"|"EXPENSE", "amount": number, "transaction_date": string, "note": string }
-        4) "transfers.create"
-            params: { "from_wallet_name": string, "to_wallet_name": string, "amount": number, "transaction_date": string, "note": string }
-        5) "savings.create"
-            params: { "name": string, "target_amount": number, "current_amount": number, "deadline": string|null }
-        6) "debts.create"
-            params: { "wallet_name": string, "person_name": string, "type": "BORROW"|"LEND", "amount": number, "due_date": string|null, "transaction_date": string, "note": string }
-        7) "budgets.set"
-            params: { "category_name": string, "amount": number, "month": number, "year": number }
-
-        Nếu thiếu thông tin cần thiết để chọn đúng entity theo tên (wallet_name/category_name) từ contextData, hãy điền vào "missing" thay vì tự đoán.
-
-        INPUT:
-        - User message: "${userMessage}"
-        - intent (gợi ý): "${intent}"
-        - tables (gợi ý): ${JSON.stringify(tables)}
-        - contextData (có thể chứa wallets/categories...): ${JSON.stringify(contextData, null, 2)}
-
-        Output JSON schema:
-            {
-                "tool": "string",
-                "params": { ... },
-                "missing": ["string"],
-                "confirmation_question": "string"
-            }
-
-        Luật quan trọng:
-        - "confirmation_question" phải nêu rõ thao tác sẽ làm (tóm tắt) và hỏi người dùng xác nhận (ví dụ: "Bạn xác nhận tạo không?").
-        - Nếu "missing" không rỗng, confirmation_question KHÔNG được hỏi xác nhận thực thi, mà phải hỏi người dùng cung cấp dữ liệu còn thiếu.
-`
+        - Khi thiếu dữ liệu, hãy nói rõ "chưa có dữ liệu", và gợi ý người dùng bổ sung trong ứng dụng rồi hỏi lại.`
+    
 }

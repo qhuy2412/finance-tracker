@@ -1,8 +1,6 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { v4: uuidv4 } = require('uuid');
 
-const db = require('../config/db');
-
 const Chat = require('../model/chatModel');
 const Wallet = require('../model/walletModel');
 const Category = require('../model/categoryModel');
@@ -12,99 +10,16 @@ const Saving = require('../model/savingModel');
 const Debt = require('../model/debtModel');
 const Budget = require('../model/budgetModel');
 
-const { ROUTER_PROMPT, buildSystemPrompt, buildToolProposalPrompt } = require('../utils/prompts');
-const financeService = require('../services/financeService');
-
+const { buildRouterUserContent, buildSystemPrompt } = require('../utils/prompts');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const routerModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-const chatModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+const chatModel = genAI.getGenerativeModel({ model: 'gemma-3-12b-it' });
+const routerModel = genAI.getGenerativeModel({ model: 'gemma-3-27b-it' });
 
-// Pending tool proposals per chat session (in-memory). Cleared after confirm/cancel or TTL.
-const pendingActions = new Map();
-const PENDING_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
-const isConfirm = (text) => {
-    const t = (text || '').toLowerCase().trim();
-    return /^(đồng ý|ok|okay|xác nhận|confirm|làm luôn|làm tiếp|thực hiện|chuẩn|được rồi|được|có)$/i.test(t) ||
-        t.includes('đồng ý') ||
-        t.includes('xác nhận') ||
-        t.includes('làm luôn') ||
-        t.includes('thực hiện');
-};
-
-const isCancel = (text) => {
-    const t = (text || '').toLowerCase().trim();
-    return /^(hủy|huỷ|không|từ chối|cancel|ko|stop)$/i.test(t) ||
-        t.includes('hủy') ||
-        t.includes('huỷ') ||
-        t.includes('không');
-};
-
-const resolveWalletId = async (userId, params) => {
-    if (params.wallet_id) return params.wallet_id;
-    if (params.wallet_name) {
-        const w = await Wallet.findByName(userId, params.wallet_name);
-        if (!w) throw new Error(`Wallet not found: ${params.wallet_name}`);
-        return w.id;
-    }
-    throw new Error('Missing wallet_id/wallet_name');
-};
-
-const resolveCategoryId = async (userId, params) => {
-    if (params.category_id) return params.category_id;
-    if (params.category_name) {
-        const c = await Category.findByName(userId, params.category_name);
-        if (!c) throw new Error(`Category not found: ${params.category_name}`);
-        return c.id;
-    }
-    throw new Error('Missing category_id/category_name');
-};
-
-const executeTool = async (userId, tool, params) => {
-    if (!tool) throw new Error('Missing tool');
-    if (!params) throw new Error('Missing params');
-
-    switch (tool) {
-        case 'wallets.create': {
-            const result = await financeService.createWallet(userId, params);
-            return { ok: true, reply: result.message };
-        }
-
-        case 'categories.create': {
-            const result = await financeService.createCategory(userId, params);
-            return { ok: true, reply: result.message };
-        }
-
-        case 'transactions.create': {
-            const result = await financeService.createTransaction(userId, params);
-            return { ok: true, reply: result.message };
-        }
-
-        case 'transfers.create': {
-            const result = await financeService.createTransfer(userId, params);
-            return { ok: true, reply: result.message };
-        }
-
-        case 'savings.create': {
-            const result = await financeService.createSaving(userId, params);
-            return { ok: true, reply: result.message };
-        }
-
-        case 'debts.create': {
-            const result = await financeService.createDebt(userId, params);
-            return { ok: true, reply: result.message };
-        }
-
-        case 'budgets.set': {
-            const result = await financeService.setBudget(userId, params);
-            return { ok: true, reply: result.message };
-        }
-
-        default:
-            throw new Error(`Unsupported tool: ${tool}`);
-    }
-};
+/** Chat chỉ đọc dữ liệu; mọi thao tác ghi thực hiện trong app. */
+const READ_ONLY_HINT =
+    'Mình chỉ có thể xem và phân tích dữ liệu tài chính của bạn trong chat. ' +
+    'Để thêm, sửa hoặc xóa giao dịch, ví, ngân sách, nợ, v.v., bạn vui lòng dùng các màn hình tương ứng trong ứng dụng FinTra nhé.';
 
 // ─── POST /chat/send ────────────────────────────────────────────────
 const handleChat = async (req, res) => {
@@ -115,68 +30,46 @@ const handleChat = async (req, res) => {
 
         if (!message) return res.status(400).json({ error: 'message is required' });
 
+        // Lịch sử session (nếu có) để router hiểu tham chiếu / câu tiếp nối
+        let routerHistory = [];
+        if (sessionId && sessionId !== 'undefined') {
+            routerHistory = await Chat.getMessages(sessionId);
+        }
+
         // ── 1. Router: detect intent + needed tables ──────────────────
-        const routerResult = await routerModel.generateContent(
-            `${ROUTER_PROMPT}\nCâu chat: "${message}"`
-        );
+        const routerUserContent = buildRouterUserContent(message, routerHistory);
+        const routerResult = await routerModel.generateContent(routerUserContent);
         const rawJson = routerResult.response.text().replace(/```json|```/g, '').trim();
         const { intent, tables: tablesRaw, direct_reply } = JSON.parse(rawJson);
         const tables = Array.isArray(tablesRaw) ? tablesRaw : [];
-        let isWriteIntent = ['CREATE', 'UPDATE', 'DELETE', 'TRANSFER', 'DEBT', 'SAVING'].includes(intent);
         const lowerMessage = (message || '').toLowerCase();
-        const writeKeywords = /(tạo|thêm|ghi|chuyển|thiết lập|đặt|mở\s+ví|mở ví|sửa|xóa|huỷ|hủy|trả\s+nợ|thanh\s+toán\s+nợ|pay)\b/;
-        const financeKeywords = /(ví|danh\s*mục|giao\s*dịch|ngân\s*sách|tiết\s*kiệm|nợ|chuyển\s*tiền|chuyển)\b/;
-        if (writeKeywords.test(lowerMessage) && financeKeywords.test(lowerMessage)) {
-            isWriteIntent = true;
-        }
+        const writeIntents = new Set(['CREATE', 'UPDATE', 'DELETE', 'TRANSFER', 'DEBT', 'SAVING']);
+        // Tránh dính câu hỏi chỉ đọc (vd. "lịch sử chuyển tiền", "bao nhiêu lần chuyển")
+        const looksLikeTransferCommand = /chuyển\s+tiền\s+(từ|sang|vào|giữa)|chuyển\s+giữa\s+các\s+ví/i.test(message);
+        const looksLikeOtherWrite =
+            /(tạo|thêm|ghi|thiết lập|đặt|mở\s+ví|mở ví|sửa|xóa|huỷ|hủy|trả\s+nợ|thanh\s+toán\s+nợ|pay)\b/.test(lowerMessage) ||
+            looksLikeTransferCommand;
+        const financeContext = /(ví|danh\s*mục|giao\s*dịch|ngân\s*sách|tiết\s*kiệm|nợ|chuyển|tiền)/i;
+        const looksLikeFinanceWrite = looksLikeOtherWrite && financeContext.test(message);
 
         if (!sessionId || sessionId === 'undefined') {
             sessionId = uuidv4().trim();
             await Chat.createSession(sessionId, userId);
         }
 
-        // ── 1.4. If we have a pending action, try confirm/cancel ─────────
-        const pending = pendingActions.get(sessionId);
-        if (pending) {
-            if (Date.now() - pending.createdAt > PENDING_TTL_MS) {
-                pendingActions.delete(sessionId);
-            } else if (isCancel(message)) {
-                pendingActions.delete(sessionId);
-                const reply = "Mình đã hủy thao tác theo yêu cầu của bạn.";
-                await Promise.all([
-                    Chat.saveMessage(uuidv4(), sessionId, 'user', message),
-                    Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply),
-                ]);
-                return res.json({ reply, session_id: sessionId });
-            } else if (isConfirm(message)) {
-                try {
-                    pendingActions.delete(sessionId);
-                    const exec = await executeTool(userId, pending.tool, pending.params);
-                    const reply = exec?.reply || "Mình đã thực hiện thao tác thành công.";
-                    await Promise.all([
-                        Chat.saveMessage(uuidv4(), sessionId, 'user', message),
-                        Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply),
-                    ]);
-                    return res.json({ reply, session_id: sessionId });
-                } catch (e) {
-                    pendingActions.delete(sessionId);
-                    const reply = `Không thể thực hiện thao tác do lỗi: ${e.message || 'unknown error'}`;
-                    await Promise.all([
-                        Chat.saveMessage(uuidv4(), sessionId, 'user', message),
-                        Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply),
-                    ]);
-                    return res.json({ reply, session_id: sessionId });
-                }
-            } else {
-                // User replied something else; clear pending to avoid executing an outdated proposal.
-                pendingActions.delete(sessionId);
-            }
+        // ── 1.4. Yêu cầu ghi/sửa/xóa: chat chỉ đọc ──────────────────────
+        if (writeIntents.has(intent) || looksLikeFinanceWrite) {
+            const reply = READ_ONLY_HINT;
+            await Promise.all([
+                Chat.saveMessage(uuidv4(), sessionId, 'user', message),
+                Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply),
+                Chat.touchSession(sessionId),
+            ]);
+            return res.json({ reply, session_id: sessionId });
         }
 
         // ── 1.5. Fast path: non-finance / smalltalk ───────────────────
-        // Router prompt already instructs: "không liên quan đến tài chính" → empty array.
-        // In that case, reply directly with router model to reduce latency/cost.
-        if (intent === 'GENERAL' || (tables.length === 0 && !isWriteIntent)) {
+        if (intent === 'GENERAL' || tables.length === 0) {
             const reply = direct_reply || "Tôi có thể giúp gì cho bạn về tài chính hôm nay?";
             await Promise.all([
                 Chat.saveMessage(uuidv4(), sessionId, 'user', message),
@@ -263,27 +156,7 @@ const handleChat = async (req, res) => {
             return res.json({ reply, session_id: sessionId });
         }
 
-        // If fetch succeeded but the user has no data yet, reply deterministically.
-        // However, for "create/add" requests (e.g. "tạo ví", "tạo danh mục", ...), we should not
-        // block the user with "you have no data" messages.
-        // lowerMessage đã được khai báo ở đầu hàm (dùng cho wantsToCreateForTable).
-        const wantsToCreateForTable = (table) => {
-            const createMatchers = {
-                wallets: [/tạo\s+ví/, /thêm\s+ví/, /mở\s+ví/],
-                categories: [/tạo\s+danh\s*mục/, /thêm\s+danh\s*mục/],
-                budgets: [/tạo\s+ngân\s*sách/, /thêm\s+ngân\s*sách/, /thiết\s*lập\s+ngân\s*sách/],
-                saving_goals: [/tạo\s+mục\s+tiêu/, /thêm\s+mục\s+tiêu/, /mục\s+tiêu\s+tiết\s+kiệm/],
-                debts: [/tạo\s+nợ/, /thêm\s+nợ/, /\bvay\b/, /cho\s+vay/, /cho\s+nợ/],
-                // transactions/transfers usually require existing wallets/categories to execute,
-                // so we do not bypass empty-data replies for these tables.
-                transactions: [],
-                transfers: [],
-            };
-
-            const matchers = createMatchers[table] || [];
-            return matchers.some((re) => re.test(lowerMessage));
-        };
-
+        // Nếu bảng cần cho câu hỏi đang rỗng → trả lời cố định (chat không thể ghi hộ).
         const emptyMessagesByTable = {
             wallets:
                 "Mình chưa thấy bạn có ví nào trong FinTra, nên chưa thể tính tổng số dư. Bạn hãy tạo ít nhất 1 ví rồi hỏi lại nhé.",
@@ -303,81 +176,14 @@ const handleChat = async (req, res) => {
 
         const firstEmpty = tables.find((t) => Array.isArray(contextData[t]) && contextData[t].length === 0);
         if (firstEmpty && emptyMessagesByTable[firstEmpty]) {
-            // If user is explicitly trying to create that kind of data, let the LLM guide them
-            // instead of returning an "all your data is empty" message.
-            if (wantsToCreateForTable(firstEmpty)) {
-                // Continue to main flow.
-            } else {
-                const reply = emptyMessagesByTable[firstEmpty];
+            const reply = emptyMessagesByTable[firstEmpty];
 
-                await Promise.all([
-                    Chat.saveMessage(uuidv4(), sessionId, 'user', message),
-                    Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply)
-                ]);
+            await Promise.all([
+                Chat.saveMessage(uuidv4(), sessionId, 'user', message),
+                Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply)
+            ]);
 
-                return res.json({ reply, session_id: sessionId });
-            }
-        }
-
-        // ── 2.6. Write intent: đề xuất tool + hỏi xác nhận ─────────────
-        if (isWriteIntent) {
-            try {
-                const proposalPrompt = buildToolProposalPrompt(message, intent, tables, contextData);
-                const proposalResult = await chatModel.generateContent(proposalPrompt);
-                const rawProposal = proposalResult.response.text().replace(/```json|```/g, '').trim();
-                const proposal = JSON.parse(rawProposal);
-
-                const missing = Array.isArray(proposal?.missing) ? proposal.missing : [];
-                const allowedTools = [
-                    'wallets.create',
-                    'categories.create',
-                    'transactions.create',
-                    'transfers.create',
-                    'savings.create',
-                    'debts.create',
-                    'budgets.set'
-                ];
-
-                if (!proposal?.tool || !allowedTools.includes(proposal.tool)) {
-                    const reply = 'Mình chưa hỗ trợ thao tác này đúng định dạng. Bạn thử diễn đạt lại nhé.';
-                    await Promise.all([
-                        Chat.saveMessage(uuidv4(), sessionId, 'user', message),
-                        Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply)
-                    ]);
-                    return res.json({ reply, session_id: sessionId });
-                }
-
-                if (missing.length > 0) {
-                    const reply = `Mình cần thêm thông tin để thực hiện chính xác: ${missing.join(', ')}. Bạn cung cấp giúp mình nhé.`;
-                    await Promise.all([
-                        Chat.saveMessage(uuidv4(), sessionId, 'user', message),
-                        Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply)
-                    ]);
-                    return res.json({ reply, session_id: sessionId });
-                }
-
-                pendingActions.set(sessionId, {
-                    tool: proposal.tool,
-                    params: proposal.params || {},
-                    createdAt: Date.now()
-                });
-
-                const reply = proposal.confirmation_question || 'Bạn xác nhận cho mình thực hiện thao tác chứ?';
-                await Promise.all([
-                    Chat.saveMessage(uuidv4(), sessionId, 'user', message),
-                    Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply)
-                ]);
-
-                return res.json({ reply, session_id: sessionId });
-            } catch (e) {
-                console.error('Tool proposal error:', e.message || e);
-                const reply = 'Mình gặp lỗi khi chuẩn bị thao tác. Bạn thử lại sau nhé.';
-                await Promise.all([
-                    Chat.saveMessage(uuidv4(), sessionId, 'user', message),
-                    Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply)
-                ]);
-                return res.json({ reply, session_id: sessionId });
-            }
+            return res.json({ reply, session_id: sessionId });
         }
 
         // ── 3. Build MAIN prompt with context (centralized in prompts.js) ──
@@ -388,7 +194,6 @@ const handleChat = async (req, res) => {
 
         // ── 4. Get / create session ───────────────────────────────────
 
-        // Route hiện tại luôn có :sessionId, nhưng vẫn giữ guard để an toàn.
         if (!sessionId) {
             sessionId = uuidv4().trim();
             await Chat.createSession(sessionId, userId);

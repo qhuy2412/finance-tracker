@@ -27,10 +27,15 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
     }, []);
     
+    // register now only sends OTP — does NOT set user
     const handleRegister = useCallback(async (username, email, password) => {
         const res = await authApi.register(username, email, password);
-        setUser(res.data.user);
-        return res.data.user;
+        return res.data;
+    }, []);
+
+    const handleVerifyEmail = useCallback(async (email, code) => {
+        const res = await authApi.verifyEmail(email, code);
+        return res.data;
     }, []);
     
     const value = useMemo(() => ({
@@ -38,8 +43,9 @@ export const AuthProvider = ({ children }) => {
         loading,
         login: handleLogin,
         logout: handleLogout,
-        register: handleRegister
-    }), [user, loading, handleLogin, handleLogout, handleRegister]);
+        register: handleRegister,
+        verifyEmail: handleVerifyEmail,
+    }), [user, loading, handleLogin, handleLogout, handleRegister, handleVerifyEmail]);
     
     return (
         <AuthContext.Provider value={value}>

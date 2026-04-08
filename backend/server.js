@@ -14,13 +14,14 @@ const savingRoute = require("./router/savingRoute");
 const budgetRoute = require("./router/budgetRoute");
 const dashboardRoute = require("./router/dashboardRoute");
 const chatRoute = require("./router/chatRoute");
+const billRoute = require("./router/billRoute");
 
 const db = require("./config/db");
 const app = express();
 
 
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(morgan("dev"));
 app.use(cookieParser());
 
@@ -39,6 +40,7 @@ app.use("/api/savings", savingRoute);
 app.use("/api/budgets", budgetRoute);
 app.use("/api/dashboard", dashboardRoute);
 app.use("/api/chat", chatRoute);
+app.use("/api/bills", billRoute);
 
 
 const PORT = process.env.PORT || 9999;

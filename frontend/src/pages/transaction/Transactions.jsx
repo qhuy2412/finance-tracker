@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { Plus, ArrowDownCircle, ArrowUpCircle, Trash2, Edit, Loader2, X, Wallet as WalletIcon, Search, FilterX, Activity, ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { Plus, ArrowDownCircle, ArrowUpCircle, Trash2, Edit, Loader2, X, Search, FilterX, Activity, ArrowDownRight, ArrowUpRight, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,7 @@ import { getTransactions, createTransaction, deleteTransaction, updateTransactio
 import { getCategories } from "../../services/category.service";
 import { toast } from "react-toastify";
 import ConfirmModal from "../../components/ConfirmModal";
+import api from "../../services/api";
 
 const fmtDate = (dateString) => {
   const date = new Date(dateString);
@@ -36,6 +37,11 @@ export default function Transactions() {
 
   // Confirm Delete Modal
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
+
+  // Bill Scan State
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanPreviewUrl, setScanPreviewUrl] = useState(null);
+  const billInputRef = useRef(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -129,6 +135,49 @@ export default function Transactions() {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditTransactionId(null);
+    setScanPreviewUrl(null);
+  };
+
+  const handleBillScan = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Show preview immediately
+    setScanPreviewUrl(URL.createObjectURL(file));
+    setIsScanning(true);
+
+    try {
+      // Convert image to base64 to send to backend
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]); // strip data:...;base64,
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const { data } = await api.post('/bills/extract', {
+        imageBase64: base64,
+        mimeType: file.type || 'image/jpeg',
+      });
+
+      const updates = {};
+      if (data.amount)  updates.amount = data.amount.toString();
+      if (data.date)    updates.transaction_date = data.date;
+      if (data.note)    updates.note = data.note;
+
+      if (Object.keys(updates).length > 0) {
+        setFormData((prev) => ({ ...prev, ...updates }));
+        toast.success('Đã nhận dạng hóa đơn! Vui lòng kiểm tra lại thông tin.');
+      } else {
+        toast.warning('Không trích xuất được dữ liệu. Vui lòng nhập thủ công.');
+      }
+    } catch (err) {
+      console.error('Bill scan error:', err);
+      toast.error(err.response?.data?.message || 'Lỗi nhận dạng hóa đơn. Vui lòng thử lại.');
+    } finally {
+      setIsScanning(false);
+      if (billInputRef.current) billInputRef.current.value = '';
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -377,8 +426,8 @@ export default function Transactions() {
                         onClick={() => openModal(t)}
                         disabled={type !== 'EXPENSE' && type !== 'INCOME'}
                         className={`p-1.5 rounded-md transition-colors ${type === 'EXPENSE' || type === 'INCOME'
-                            ? "text-slate-400 hover:text-blue-600 hover:bg-blue-50" 
-                            : "text-slate-200 cursor-not-allowed" 
+                          ? "text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                          : "text-slate-200 cursor-not-allowed"
                           }`}
                         title={type === 'EXPENSE' || type === 'INCOME' ? "Sửa giao dịch" : "Không thể sửa loại giao dịch này"}
                       >
@@ -407,10 +456,64 @@ export default function Transactions() {
           <div className="relative w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <h3 className="font-semibold text-slate-800">{editTransactionId ? "Sửa giao dịch" : "Thêm giao dịch"}</h3>
-              <button type="button" onClick={closeModal} className="text-slate-400 hover:text-slate-600">
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-2">
+                {!editTransactionId && (
+                  <>
+                    {/* Hidden file input — supports both camera capture and file picker */}
+                    <input
+                      ref={billInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      id="bill-scan-input"
+                      onChange={handleBillScan}
+                    />
+                    <label
+                      htmlFor="bill-scan-input"
+                      title="Quét hóa đơn"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 cursor-pointer transition-colors select-none"
+                    >
+                      <Camera size={14} />
+                      Quét hóa đơn
+                    </label>
+                  </>
+                )}
+                <button type="button" onClick={closeModal} className="text-slate-400 hover:text-slate-600">
+                  <X size={18} />
+                </button>
+              </div>
             </div>
+
+            {/* Scanning overlay */}
+            {isScanning && (
+              <div className="px-5 py-3 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
+                <Loader2 size={14} className="animate-spin text-blue-600 shrink-0" />
+                <span className="text-xs text-blue-700 font-medium">Đang phân tích hóa đơn...</span>
+              </div>
+            )}
+
+            {/* Bill preview thumbnail (shown after scan, not scanning) */}
+            {scanPreviewUrl && !isScanning && (
+              <div className="px-5 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
+                <img
+                  src={scanPreviewUrl}
+                  alt="Hóa đơn"
+                  className="w-12 h-12 object-cover rounded-lg border border-slate-200 shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-slate-700">Đã nhận dạng hóa đơn</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Kiểm tra và chỉnh sửa thông tin bên dưới nếu cần.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setScanPreviewUrl(null)}
+                  className="text-slate-300 hover:text-slate-500 shrink-0"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
 
@@ -504,9 +607,9 @@ export default function Transactions() {
                 <Button type="button" variant="outline" onClick={closeModal} className="flex-1">
                   Hủy
                 </Button>
-                <Button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 hover:bg-blue-700">
+                <Button type="submit" disabled={isSubmitting || isScanning} className="flex-1 bg-blue-600 hover:bg-blue-700">
                   {isSubmitting ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
-                  Lưu
+                  {isScanning ? "Đang nhận dạng..." : "Lưu"}
                 </Button>
               </div>
             </form>

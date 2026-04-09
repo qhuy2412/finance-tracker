@@ -23,20 +23,27 @@ jobs:
           npm install
           npm run build
 
-      - name: Deploy to Ubuntu Server
+      - name: Copy Build to Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "frontend/dist/*"
+          target: "/var/www/fintra/finance-tracker/frontend/dist"
+          strip_components: 2
+
+      - name: Deploy Backend & Reload Nginx
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
           script: |
             cd /var/www/fintra/finance-tracker
             git pull origin main
-            
             cd backend
             npm install
-            pm2 restart fintra-api --update-env || pm2 start server.js --name fintra-api
-            
-            sudo cp -r /var/www/fintra/finance-tracker/frontend/dist/* /var/www/html/fintra/             
+            pm2 restart fintra-api || pm2 start server.js --name fintra-api
+            sudo cp -r /var/www/fintra/finance-tracker/frontend/dist/* /var/www/html/fintra/
             sudo systemctl reload nginx

@@ -1,6 +1,6 @@
 import api from './api';
 const chatService = {
-    createSession: () => api.post('/chat/sessions', {}),
+    createSession: () => api.post('/chat/sessions', {}).then((r) => r.data),
     getSessions: () => api.get('/chat/sessions').then((r) => r.data),
     getMessages: (sessionId) =>
         api.get(`/chat/sessions/${sessionId}/messages`).then((r) => r.data),

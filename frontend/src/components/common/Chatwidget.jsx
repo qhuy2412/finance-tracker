@@ -83,7 +83,7 @@ export default function ChatWidget() {
       let sessionId = currentSessionId;
       if (!sessionId) {
         const created = await chatService.createSession();
-        sessionId = created?.data?.session_id;
+        sessionId = created?.session_id;
         if (sessionId) {
           setCurrentSessionId(sessionId);
           loadSessions();

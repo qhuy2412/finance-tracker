@@ -37,7 +37,9 @@ const Chat = {
     // Lấy tất cả tin nhắn của 1 session (tối đa 50)
     getMessages: async (sessionId) => {
         const [rows] = await db.execute(
-            'SELECT role, content, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC LIMIT 50',
+            // created_at có thể trùng nhau (độ phân giải theo giây) vì lưu user+assistant gần như đồng thời.
+            // Khi trùng timestamp, luôn ưu tiên user trước assistant để tránh đảo thứ tự khi load lại.
+            "SELECT role, content, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC, FIELD(role,'user','assistant') ASC LIMIT 50",
             [sessionId]
         );
         return rows;

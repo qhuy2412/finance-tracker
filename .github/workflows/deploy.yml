@@ -1,40 +1,17 @@
-name: FinTra CI/CD Pipeline
+name: FinTra CI/CD Build on Server
 
 on:
   push:
-    branches: [ main ] 
+    branches: [ main ]
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Build Frontend
-        run: |
-          cd frontend
-          npm install
-          npm run build
-
-      - name: Copy Build to Server
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          source: "frontend/dist/*"
-          target: "/var/www/fintra/finance-tracker/frontend/dist"
-          strip_components: 2
-
-      - name: Deploy Backend & Reload Nginx
+      - name: Deploy & Build on Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -44,8 +21,18 @@ jobs:
           script: |
             cd /var/www/fintra/finance-tracker
             git pull origin main
-            cd backend
+
+            cd frontend
             npm install
-            pm2 restart fintra-api || pm2 start server.js --name fintra-api
-            sudo cp -r /var/www/fintra/finance-tracker/frontend/dist/* /var/www/html/fintra/
+            npm run build
+            
+            sudo cp -r dist/* /var/www/html/fintra/
+            
+
+            cd ../backend
+            npm install
+            pm2 delete fintra-api || true
+            pm2 start server.js --name fintra-api
+
+            sudo chown -R www-data:www-data /var/www/html/fintra/
             sudo systemctl reload nginx

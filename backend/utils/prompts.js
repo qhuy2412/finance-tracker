@@ -99,7 +99,6 @@ const buildRouterUserContent = (message, previousMessages) => {
     return `${ROUTER_PROMPT}${historyBlock}\n\nCâu chat hiện tại: ${message}`;
 };
 
-// ─── buildTransactionExtractPrompt (tách riêng khỏi buildSystemPrompt) ──
 const buildTransactionExtractPrompt = (today, contextData, userMessage, todayISO) => {
     const ctx = {
         wallets: (contextData.wallets || []).map(w => ({ name: w.name, balance: w.balance, type: w.type })),

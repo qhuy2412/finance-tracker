@@ -125,13 +125,6 @@ const handleChat = async (req, res) => {
             return res.json({ reply, session_id: sessionId });
         };
 
-        if (isTrivialGreeting(message)) {
-            return sendReply(
-                'Chào bạn! Mình là trợ lý FinTra, có thể giúp bạn xem số dư, chi tiêu hoặc ghi giao dịch thu/chi. Bạn cần gì thì nhắn nhé!',
-                { fireAndForget: true }
-            );
-        }
-
         const pending = pendingActions.get(sessionId);
         if (pending?.kind === 'transaction') {
             if (Date.now() - pending.createdAt > PENDING_TTL_MS) {
@@ -152,13 +145,14 @@ const handleChat = async (req, res) => {
             }
         }
 
+        if (isTrivialGreeting(message)) {
+            return sendReply(
+                'Chào bạn! Mình là trợ lý FinTra, có thể giúp bạn xem số dư, chi tiêu hoặc ghi giao dịch thu/chi. Bạn cần gì thì nhắn nhé!',
+                { fireAndForget: true }
+            );
+        }
 
-        const [routerResult, routerHistory] = await Promise.all([
-            routerModel.generateContent(buildRouterUserContent(message, [])), // history sẽ được inject sau
-            Chat.getMessages(sessionId),
-        ]);
-
-        // Chạy lại router với history đầy đủ (hoặc dùng history vừa lấy)
+        const routerHistory = await Chat.getMessages(sessionId);
         const routerUserContent = buildRouterUserContent(message, routerHistory);
         const routerResultFull = await routerModel.generateContent(routerUserContent);
         const rawJson = routerResultFull.response.text().replace(/```json|```/g, '').trim();

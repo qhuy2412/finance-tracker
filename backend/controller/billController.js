@@ -2,24 +2,25 @@ const Groq = require('groq-sdk');
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const EXTRACT_PROMPT = `You are a Vietnamese receipt/bill data extractor.
-Analyze this bill image and extract the following fields.
-Respond ONLY with a valid JSON object — no markdown, no explanation, no extra text.
+const EXTRACT_PROMPT = `
+        You are a Vietnamese receipt/bill data extractor.
+        Analyze this bill image and extract the following fields.
+        Respond ONLY with a valid JSON object — no markdown, no explanation, no extra text.
 
-Required JSON format:
-{
-  "amount": <final total as a plain integer in VND, e.g. 480000, or null if not found>,
-  "date": <receipt date as "YYYY-MM-DD", or null if not found>,
-  "note": <store or merchant name as a short string, or "" if not found>
-}
+        Required JSON format:
+            {
+                "amount": <final total as a plain integer in VND, e.g. 480000, or null if not found>,
+                "date": <receipt date as "YYYY-MM-DD", or null if not found>,
+                "note": <store or merchant name as a short string, or "" if not found>
+            }
 
-Rules:
-- "amount" must be the FINAL total, not a subtotal or individual item price.
-  Look for labels: Tổng cộng, T.Cộng, Tiền mặt, Thanh toán, Grand Total, Total.
-- "date" must be the receipt date (not time). Convert DD/MM/YYYY to YYYY-MM-DD.
-- "note" should be the store/restaurant name, usually at the top of the receipt.
-  Skip generic labels like "HÓA ĐƠN THANH TOÁN".
-- If a field cannot be determined with confidence, use null (amount/date) or "" (note).`;
+            Rules:
+                - "amount" must be the FINAL total, not a subtotal or individual item price.
+                - Look for labels: Tổng cộng, T.Cộng, Tiền mặt, Thanh toán, Grand Total, Total.
+                - "date" must be the receipt date (not time). Convert DD/MM/YYYY to YYYY-MM-DD.
+                - "note" should be the store/restaurant name, usually at the top of the receipt.
+                - Skip generic labels like "HÓA ĐƠN THANH TOÁN".
+                - If a field cannot be determined with confidence, use null (amount/date) or "" (note).`;
 
 const extractBill = async (req, res) => {
     const { imageBase64, mimeType } = req.body;

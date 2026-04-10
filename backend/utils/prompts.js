@@ -122,7 +122,12 @@ Ngày mặc định nếu user không nói rõ ngày: ${todayISO} (định dạn
 Quy tắc trích xuất:
 - type: "INCOME" hoặc "EXPENSE", phải khớp với category.type của danh mục đã chọn.
 - amount: số dương VND (50k → 50000; 1,5tr / 1.5tr → 1500000).
-- wallet_name: trùng tên ví trong list. Nếu user không nói ví và chỉ có đúng 1 ví → có thể dùng ví đó; nhiều ví mà không rõ → thêm vào missing.
+- wallet_name: trùng tên ví trong list.
+  - Nếu user nêu rõ ví (vd: "ví Momo", "từ ví Tiền mặt") → chọn đúng ví đó.
+  - Nếu user KHÔNG nêu ví:
+    - Nếu list chỉ có đúng 1 ví → có thể dùng ví đó.
+    - Nếu list có từ 2 ví trở lên → TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ CHỌN/ĐOÁN/CHỌN ĐẠI (không mặc định ví đầu tiên).
+      Khi đó phải đặt "wallet_name" là chuỗi rỗng "" và thêm "chưa rõ ví" vào missing.
 - category_name: trùng tên danh mục trong list, đúng loại INCOME/EXPENSE.
 - transaction_date: nếu user không nói rõ thì tự dùng ngày mặc định (${todayISO}), KHÔNG thêm vào missing.
 - note: tùy chọn, có thể "" và KHÔNG bao giờ là lý do để hỏi thêm.

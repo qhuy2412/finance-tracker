@@ -14,7 +14,7 @@ const { buildRouterUserContent, buildSystemPrompt } = require('../utils/prompts'
 const financeService = require('../services/financeService');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const chatModel = genAI.getGenerativeModel({ model: 'gemma-3-12b-it' });
+const chatModel = genAI.getGenerativeModel({ model: 'gemma-3-27b-it' });
 const routerModel = genAI.getGenerativeModel({ model: 'gemma-3-27b-it' });
 
 const READ_ONLY_HINT =

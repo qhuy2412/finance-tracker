@@ -26,7 +26,7 @@ app.use(morgan("dev"));
 app.use(cookieParser());
 
 app.use(cors({
-  origin: true, // Cho phép tất cả các nguồn để test trước
+  origin: true, 
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));

@@ -1,4 +1,4 @@
-const ROUTER_CHAT_HISTORY_MAX = 14;
+const ROUTER_CHAT_HISTORY_MAX = 20;
 
 function stripTechnicalFields(value) {
     if (value == null) return value;

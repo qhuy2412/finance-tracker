@@ -59,6 +59,18 @@ const looksLikeTransactionCreate = (text) => {
     return incomeCue || expenseCue || recordCue;
 };
 
+const isLikelyFollowUp = (text) => {
+    const t = (text || '').trim().toLowerCase();
+    if (!t) return false;
+    // các câu nối tiếp / đại từ tham chiếu / câu hỏi ngắn kiểu "thế còn...?"
+    if (t.length <= 60 && /(thế|vậy|còn|còn lại|so với|so sánh|tháng trước|tuần trước|hôm qua|lần đó|cái đó|đó|nó|ở trên|như vậy|tiếp theo)\b/.test(t)) {
+        return true;
+    }
+    // câu cực ngắn nhưng có dấu hỏi → thường cần ngữ cảnh
+    if (t.length <= 25 && /\?+$/.test(t)) return true;
+    return false;
+};
+
 const findByNameCi = (rows, name) => {
     if (!name || !Array.isArray(rows)) return null;
     const n = String(name).trim().toLowerCase();
@@ -174,9 +186,10 @@ const handleChat = async (req, res) => {
             looksLikeTransferCommand;
         const looksLikeFinanceWrite = looksLikeOtherWrite && /(ví|danh\s*mục|giao\s*dịch|ngân\s*sách|tiết\s*kiệm|nợ|chuyển|tiền)/i.test(message);
         const isTxnCreate = intent === 'CREATE_TRANSACTION' || looksLikeTransactionCreate(message);
+        const followUp = isLikelyFollowUp(message);
 
         // ── 4. GENERAL nhanh ───────────────────────────────────────────
-        if (intent === 'GENERAL' && !isTxnCreate && !looksLikeFinanceWrite) {
+        if (intent === 'GENERAL' && !isTxnCreate && !looksLikeFinanceWrite && !followUp) {
             return sendReply(direct_reply || 'Tôi có thể giúp gì cho bạn về tài chính hôm nay?');
         }
 
@@ -265,7 +278,12 @@ const handleChat = async (req, res) => {
 
         // ── 7. Fast path: không có bảng cần nạp ───────────────────────
         if (tables.length === 0) {
+            // Nếu là câu nối tiếp, router hay bị trả tables rỗng → fallback nạp ngữ cảnh phổ biến
+            if (followUp) {
+                tables = ['transactions', 'wallets', 'categories'];
+            } else {
             return sendReply(direct_reply || 'Tôi có thể giúp gì cho bạn về tài chính hôm nay?');
+            }
         }
 
         // ── 8. Fetch context data song song ───────────────────────────

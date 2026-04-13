@@ -105,6 +105,10 @@ export default function AuthPage() {
     const [otpCode, setOtpCode] = useState("");
     const [resendCooldown, setResendCooldown] = useState(0);
     const [loading, setLoading] = useState(false);
+    
+    // Field-level errors
+    const [registerErrors, setRegisterErrors] = useState({ username: "", email: "", password: "", confirmPassword: "" });
+    const [verifyError, setVerifyError] = useState("");
 
     // Resend countdown timer
     useEffect(() => {
@@ -118,6 +122,8 @@ export default function AuthPage() {
         setLoginForm({ email: "", password: "" });
         setRegisterForm({ username: "", email: "", password: "", confirmPassword: "" });
         setOtpCode("");
+        setRegisterErrors({ username: "", email: "", password: "", confirmPassword: "" });
+        setVerifyError("");
     };
 
     const handleLogin = async () => {
@@ -136,10 +142,19 @@ export default function AuthPage() {
 
     const handleRegister = async () => {
         if (loading) return;
+        
+        // Clear previous errors
+        setRegisterErrors({ username: "", email: "", password: "", confirmPassword: "" });
+        
+        // Client-side validation
         if (registerForm.password !== registerForm.confirmPassword) {
-            toast.error("Mật khẩu xác nhận không khớp");
+            setRegisterErrors(prev => ({
+                ...prev,
+                confirmPassword: "Mật khẩu xác nhận không khớp"
+            }));
             return;
         }
+        
         setLoading(true);
         try {
             await register(registerForm.username, registerForm.email, registerForm.password);
@@ -149,7 +164,23 @@ export default function AuthPage() {
             setMode("verify");
             toast.success("Mã xác minh đã được gửi tới email của bạn!");
         } catch (error) {
-            toast.error(error.response?.data?.message || "Đăng ký thất bại");
+            const errorData = error.response?.data;
+            
+            // Check if error has field-specific messages
+            if (errorData?.errors && typeof errorData.errors === "object") {
+                const newErrors = { username: "", email: "", password: "", confirmPassword: "" };
+                Object.keys(errorData.errors).forEach(field => {
+                    if (field in newErrors) {
+                        newErrors[field] = Array.isArray(errorData.errors[field])
+                            ? errorData.errors[field][0]
+                            : errorData.errors[field];
+                    }
+                });
+                setRegisterErrors(newErrors);
+            } else if (errorData?.message) {
+                // If no specific field errors, show general message
+                setRegisterErrors(prev => ({ ...prev, email: errorData.message }));
+            }
         } finally {
             setLoading(false);
         }
@@ -157,8 +188,12 @@ export default function AuthPage() {
 
     const handleVerify = async () => {
         if (loading) return;
+        
+        // Clear previous error
+        setVerifyError("");
+        
         if (otpCode.length < 6) {
-            toast.error("Vui lòng nhập đủ 6 chữ số");
+            setVerifyError("Vui lòng nhập đủ 6 chữ số");
             return;
         }
         setLoading(true);
@@ -169,7 +204,8 @@ export default function AuthPage() {
             setLoginForm({ email: pendingEmail, password: "" });
             setOtpCode("");
         } catch (error) {
-            toast.error(error.response?.data?.message || "Mã xác minh không đúng");
+            const errorData = error.response?.data;
+            setVerifyError(errorData?.message || "Mã xác minh không đúng");
         } finally {
             setLoading(false);
         }
@@ -177,6 +213,7 @@ export default function AuthPage() {
 
     const handleResend = async () => {
         if (resendCooldown > 0 || loading) return;
+        setVerifyError("");
         setLoading(true);
         try {
             await register(registerForm.username || "", pendingEmail, registerForm.password || "");
@@ -184,7 +221,8 @@ export default function AuthPage() {
             setResendCooldown(60);
             toast.success("Mã xác minh mới đã được gửi!");
         } catch (error) {
-            toast.error(error.response?.data?.message || "Gửi lại thất bại");
+            const errorData = error.response?.data;
+            setVerifyError(errorData?.message || "Gửi lại thất bại");
         } finally {
             setLoading(false);
         }
@@ -265,6 +303,7 @@ export default function AuthPage() {
                         {/* OTP input */}
                         <div style={{ marginBottom: "24px" }}>
                             <OtpInput value={otpCode} onChange={setOtpCode} />
+                            {verifyError && <p style={{ color: "#dc2626", fontSize: "13px", marginTop: "8px", textAlign: "center" }}>{verifyError}</p>}
                         </div>
 
                         {/* Verify button */}
@@ -372,19 +411,23 @@ export default function AuthPage() {
                         <div className="space-y-1.5">
                             <Label>Tên người dùng<p style={{ color: "red" }}>*</p></Label>
                             <Input type="text" placeholder="yourname" value={registerForm.username} onChange={(e) => setRegisterForm({ ...registerForm, username: e.target.value })} />
+                            {registerErrors.username && <p className="text-red-500 text-xs mt-1">{registerErrors.username}</p>}
                         </div>
                         <div className="space-y-1.5">
                             <Label>Email<p style={{ color: "red" }}>*</p></Label>
                             <Input type="email" placeholder="you@gmail.com" value={registerForm.email} onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })} />
+                            {registerErrors.email && <p className="text-red-500 text-xs mt-1">{registerErrors.email}</p>}
                         </div>
                         <div className="space-y-1.5">
                             <Label>Mật khẩu <p style={{ color: "red" }}>*</p></Label>
                             <Input type="password" placeholder="••••••••" value={registerForm.password} onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })} />
+                            {registerErrors.password && <p className="text-red-500 text-xs mt-1">{registerErrors.password}</p>}
                         </div>
                         <div className="space-y-1.5">
                             <Label>Xác nhận mật khẩu<p style={{ color: "red" }}>*</p></Label>
                             <Input type="password" placeholder="••••••••" value={registerForm.confirmPassword} onChange={(e) => setRegisterForm({ ...registerForm, confirmPassword: e.target.value })}
                                 onKeyDown={(e) => e.key === "Enter" && handleRegister()} />
+                            {registerErrors.confirmPassword && <p className="text-red-500 text-xs mt-1">{registerErrors.confirmPassword}</p>}
                         </div>
                         <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={handleRegister} disabled={loading}>
                             {loading ? "Đang gửi mã..." : "Đăng ký"}

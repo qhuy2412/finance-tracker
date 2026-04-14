@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { v4: uuidv4 } = require('uuid');
 const { resolveWalletId } = require('./financeEntityResolver');
 const { createHttpError } = require('./financeErrors');
+const Saving = require('../model/savingModel');
 
 const debtFinance = {
     async createDebt(userId, params = {}) {
@@ -44,8 +45,14 @@ const debtFinance = {
                 throw createHttpError(400, 'Wallet not found!');
             }
 
-            if (type === 'LEND' && Number(wallet.balance) < Number(amount)) {
-                throw createHttpError(400, 'Balance of this wallet is not enough for lend!');
+            // Kiểm tra số dư khả dụng (trừ tiền đang dành cho tiết kiệm)
+            const reservedRows = await Saving.getReservedAmountPerWallet(userId);
+            const reservedEntry = reservedRows.find(r => r.wallet_id === resolvedWalletId);
+            const reservedAmount = reservedEntry ? Number(reservedEntry.reserved) : 0;
+            const availableBalance = Number(wallet.balance) - reservedAmount;
+
+            if (type === 'LEND' && availableBalance < Number(amount)) {
+                throw createHttpError(400, `Số dư khả dụng không đủ để cho vay! Khả dụng: ${availableBalance.toLocaleString('vi-VN')} ₫ (tổng ${Number(wallet.balance).toLocaleString('vi-VN')} ₫ - đang tiết kiệm ${reservedAmount.toLocaleString('vi-VN')} ₫).`);
             }
 
             const debtId = uuidv4().trim();

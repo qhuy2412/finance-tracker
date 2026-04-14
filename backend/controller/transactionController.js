@@ -4,6 +4,7 @@ const Wallet = require("../model/walletModel");
 const Category = require("../model/categoryModel");
 const { v4: uuidv4 } = require('uuid');
 const financeService = require('../services/financeService');
+const Saving = require('../model/savingModel');
 const getAllTransactionsByWalletId = async (req, res) => {
     try {
         const walletId = req.params.walletId;
@@ -59,6 +60,19 @@ const deleteTransaction = async (req, res) => {
 
         // Reverse the wallet balance
         const balanceReversal = transaction.type === 'INCOME' ? -transaction.amount : transaction.amount;
+        
+        if (balanceReversal < 0) {
+            const reservedRows = await Saving.getReservedAmountPerWallet(userId);
+            const reservedEntry = reservedRows.find(r => r.wallet_id === transaction.wallet_id);
+            const reservedAmount = reservedEntry ? Number(reservedEntry.reserved) : 0;
+            const availableBalance = Number(wallet.balance) - reservedAmount;
+            
+            if (availableBalance + balanceReversal < 0) {
+                await connection.rollback();
+                return res.status(400).json({ message: `Không thể xoá giao dịch! Số dư khả dụng của ví sẽ xuống âm. Khả dụng: ${availableBalance.toLocaleString('vi-VN')} ₫ (tổng ${Number(wallet.balance).toLocaleString('vi-VN')} ₫ - đang tiết kiệm ${reservedAmount.toLocaleString('vi-VN')} ₫).` });
+            }
+        }
+
         await Wallet.updateBalance(transaction.wallet_id, balanceReversal, connection);
 
         // Delete the transaction
@@ -133,9 +147,16 @@ const updateTransaction = async (req, res) => {
         const totalBalanceChange = parseFloat(oldBalanceReversal) + parseFloat(newBalanceChange);
 
         // Check if wallet has enough balance (if this leads to negative balance)
-        if (parseFloat(wallet.balance) + totalBalanceChange < 0) {
-            await connection.rollback();
-            return res.status(400).json({ message: "Not enough balance in wallet for this update!" });
+        if (totalBalanceChange < 0) {
+            const reservedRows = await Saving.getReservedAmountPerWallet(userId);
+            const reservedEntry = reservedRows.find(r => r.wallet_id === walletId);
+            const reservedAmount = reservedEntry ? Number(reservedEntry.reserved) : 0;
+            const availableBalance = Number(wallet.balance) - reservedAmount;
+
+            if (availableBalance + totalBalanceChange < 0) {
+                await connection.rollback();
+                return res.status(400).json({ message: `Không đủ số dư khả dụng cho cập nhật! Khả dụng: ${availableBalance.toLocaleString('vi-VN')} ₫ (tổng ${Number(wallet.balance).toLocaleString('vi-VN')} ₫ - đang tiết kiệm ${reservedAmount.toLocaleString('vi-VN')} ₫).` });
+            }
         }
 
         await Wallet.updateBalance(walletId, totalBalanceChange, connection);

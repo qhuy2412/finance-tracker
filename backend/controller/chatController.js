@@ -105,7 +105,19 @@ const formatTransactionErrorVi = (msg) => {
 const WRITE_INTENTS = new Set(['CREATE', 'UPDATE', 'DELETE', 'TRANSFER', 'DEBT', 'SAVING']);
 
 const TABLE_FETCHERS = {
-    wallets: (userId) => Wallet.getAllWalletsByUserId(userId),
+    wallets: async (userId) => {
+        const wallets = await Wallet.getAllWalletsByUserId(userId);
+        const reservedRows = await Saving.getReservedAmountPerWallet(userId);
+        return wallets.map(w => {
+            const reservedRow = reservedRows.find(r => r.wallet_id === w.id);
+            const reserved = reservedRow ? Number(reservedRow.reserved) : 0;
+            return {
+                ...w,
+                reserved_for_savings: reserved,
+                available_balance: Number(w.balance) - reserved
+            };
+        });
+    },
     categories: (userId) => Category.getAllCategoriesByUserId(userId),
     transactions: (userId) => Transaction.getRecentTransactionsByUserId(userId, 50),
     transfers: (userId) => Transfer.getAllTrasnfersByUserId(userId),
@@ -237,10 +249,16 @@ const handleChat = async (req, res) => {
                 const todayVn = new Date().toLocaleDateString('vi-VN', {
                     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
                 });
+                
+                const routerHistoryLines = routerHistory.slice(-5).map(m => {
+                    const label = m.role === 'assistant' ? 'Trợ lý' : 'Người dùng';
+                    return `${label}: ${m.content}`;
+                }).join('\n');
+
                 const proposalPrompt = buildSystemPrompt(
                     todayVn, 'CREATE_TRANSACTION',
                     { wallets, categories: catsForTxn },
-                    { transactionExtract: { userMessage: message, todayISO } }
+                    { transactionExtract: { userMessage: message, todayISO, historyBlock: routerHistoryLines } }
                 );
                 const proposalResult = await chatModel.generateContent(proposalPrompt);
                 const rawProposal = proposalResult.response.text().replace(/```json|```/g, '').trim();
@@ -255,7 +273,7 @@ const handleChat = async (req, res) => {
                     : [];
 
                 if (missing.length > 0) {
-                    return sendReply(`Mình cần thêm thông tin: ${missing.join(', ')}. Bạn nhắn rõ giúp mình nhé.`, { saveToHistory: false });
+                    return sendReply(`Mình cần thêm thông tin: ${missing.join(', ')}. Bạn nhắn rõ giúp mình nhé.`);
                 }
 
                 const wName = proposal.wallet_name;
@@ -335,20 +353,31 @@ const handleChat = async (req, res) => {
 
         await Chat.touchSession(sessionId);
 
-        const chatHistory = routerHistory.slice(-20).map(m => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content }],
-        }));
+        // Xử lý chatHistory: gộp các role liên tiếp và format đúng chuẩn Gemini
+        const rawHistory = routerHistory.slice(-20);
+        const chatHistory = [];
+        for (const m of rawHistory) {
+            const role = m.role === 'assistant' ? 'model' : 'user';
+            if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === role) {
+                chatHistory[chatHistory.length - 1].parts[0].text += `\n\n${m.content}`;
+            } else {
+                chatHistory.push({ role, parts: [{ text: m.content }] });
+            }
+        }
+
+        // Gemini yêu cầu trước khi gọi sendMessage (role: user) thì history phải kết thúc bằng model
+        if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === 'user') {
+            chatHistory.push({ role: 'model', parts: [{ text: 'Đã nhận thông tin, mời bạn nói tiếp.' }] });
+        }
 
         const chat = chatModel.startChat({
-            history: [
-                { role: 'user', parts: [{ text: systemPrompt }] },
-                { role: 'model', parts: [{ text: 'Tôi đã hiểu. Tôi sẽ trả lời dựa trên dữ liệu tài chính thực tế của bạn.' }] },
-                ...chatHistory,
-            ],
+            history: chatHistory,
         });
 
-        const result = await chat.sendMessage(message);
+        // Nhúng TÌNH TRẠNG DỮ LIỆU HIỆN TẠI trực tiếp vào phiên hỏi này để đảm bảo AI ưu tiên nó nhất
+        const fullMessage = `${systemPrompt}\n\n=== CHAT MỚI TỪ NGƯỜI DÙNG ===\n${message}`;
+
+        const result = await chat.sendMessage(fullMessage);
         return sendReply(result.response.text());
 
     } catch (error) {

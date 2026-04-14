@@ -62,7 +62,7 @@ B) GHI giao dịch THU / CHI thường (không phải chuyển ví, không phả
    - Ví dụ: "ghi 50k ăn phở ví Momo", "chi 100k cà phê", "nhận lương 10tr", "thu nhập 2 triệu hôm nay".
    - "intent": "CREATE_TRANSACTION", "is_finance": true, "tables": ["wallets", "categories"], "direct_reply": "".
    - Không dùng CREATE_TRANSACTION cho: chuyển tiền giữa ví, tạo ví, tạo danh mục, nợ, ngân sách.
-   - Cần chắc chắn rằng người dùng muốn ghi giao dịch thu/chi thường, nếu không rõ ràng thì trả về "intent": "GENERAL"
+   - CHÚ Ý: Nếu người dùng đang trả lời CÂU HỎI BỔ SUNG thông tin cho giao dịch vừa nãy (vd: "từ ví tiền mặt", "mục ăn uống"), hãy CỨ TIẾP TỤC trả về "intent": "CREATE_TRANSACTION" để duy trì luồng ghi chép.
 
 B2) Các yêu cầu GHI / SỬA / XÓA khác (tạo ví, chuyển tiền, nợ, ngân sách, sửa/xóa giao dịch…):
     - Phân loại intent tương ứng (CREATE, UPDATE, DELETE, TRANSFER, DEBT, SAVING). "tables" có thể rỗng.
@@ -91,7 +91,7 @@ const CHAT_SYSTEM_STATIC_HEADER = `
 Bạn là trợ lý tài chính thông minh của ứng dụng FinTra.
 
 === CÁC VIỆC BẠN CÓ THỂ GIÚP NGƯỜI DÙNG ===
-1. XEM SỐ DƯ & VÍ: tổng số dư, số dư từng ví, liệt kê ví.
+1. XEM SỐ DƯ & VÍ: tổng số dư, số dư từng ví, liệt kê ví. (Lưu ý: "available_balance" là số dư khả dụng có thể tiêu, "balance" là tổng số dư, "reserved_for_savings" là tiền đang nằm trong các mục tiêu tiết kiệm, không thể tiêu).
 2. CHI TIÊU & THU NHẬP: tổng chi/thu theo thời gian, giao dịch gần đây, cơ cấu danh mục, so sánh tháng.
 3. NGÂN SÁCH: còn lại bao nhiêu, % đã dùng, danh mục vượt hạn mức.
 4. MỤC TIÊU TIẾT KIỆM: tiến độ, còn bao nhiêu để đạt mục tiêu.
@@ -105,7 +105,7 @@ Bạn là trợ lý tài chính thông minh của ứng dụng FinTra.
 
 === DỮ LIỆU NỘI BỘ (JSON — KHÔNG SAO CHÉP RA CHO NGƯỜI DÙNG) ===
 Chuyển thành câu tiếng Việt tự nhiên. KHÔNG lặp tên cột, KHÔNG in JSON/markdown bảng.
-Gợi ý: balance → số dư; name → tên ví/danh mục; amount → số tiền; transaction_date → ngày; type → loại thu/chi; note → ghi chú.`.trim();
+Gợi ý: balance → tổng số dư; available_balance → số dư khả dụng để tiêu; reserved_for_savings → tiền đang khóa cho tiết kiệm; name → tên ví/danh mục; amount → số tiền; transaction_date → ngày; type → loại thu/chi; note → ghi chú.`.trim();
 
 // ─── buildRouterUserContent ───────────────────────────────────────────
 const buildRouterUserContent = (message, previousMessages) => {
@@ -122,7 +122,7 @@ const buildRouterUserContent = (message, previousMessages) => {
 };
 
 // ─── buildTransactionExtractPrompt ───────────────────────────────────
-const buildTransactionExtractPrompt = (today, contextData, userMessage, todayISO) => {
+const buildTransactionExtractPrompt = (today, contextData, userMessage, todayISO, historyBlock = '') => {
     const ctx = {
         wallets: (contextData.wallets || []).map(w => ({ name: w.name, balance: w.balance, type: w.type })),
         categories: (contextData.categories || []).map(c => ({ name: c.name, type: c.type })),
@@ -132,7 +132,8 @@ Bạn là trợ lý tài chính thông minh của ứng dụng FinTra.
 Hôm nay là: ${today}.
 
 === CHẾ ĐỘ TRÍCH XUẤT GIAO DỊCH (bắt buộc tuân thủ) ===
-Từ tin nhắn người dùng, trích MỘT giao dịch INCOME hoặc EXPENSE (thu nhập / chi tiêu thường).
+Từ tin nhắn người dùng (và ngữ cảnh hội thoại trước nếu có), trích xuất MỘT giao dịch INCOME hoặc EXPENSE (thu nhập / chi tiêu thường).
+Tuyệt đối kết hợp thông tin đứt quãng ở lịch sử với tin nhắn hiện tại để gom thành một giao dịch hoàn chỉnh.
 Không xử lý: chuyển tiền giữa ví, nợ/vay, tạo ví, ngân sách.
 
 CHỈ TRẢ VỀ MỘT JSON hợp lệ (không markdown, không giải thích ngoài JSON).
@@ -170,7 +171,10 @@ Schema JSON:
   "confirmation_question": "string"
 }
 
-Tin nhắn người dùng cần trích: ${JSON.stringify(userMessage)}
+Ngữ cảnh hội thoại trước đó (nếu có để bổ sung thông tin):
+${historyBlock}
+
+Tin nhắn mới nhất người dùng cần trích: ${JSON.stringify(userMessage)}
 `.trim();
 };
 
@@ -210,7 +214,7 @@ const buildSystemPrompt = (today, intent, contextData, options = {}) => {
     const tx = options.transactionExtract;
     if (tx && typeof tx.userMessage === 'string') {
         const todayISO = tx.todayISO || new Date().toISOString().slice(0, 10);
-        return buildTransactionExtractPrompt(today, contextData, tx.userMessage, todayISO);
+        return buildTransactionExtractPrompt(today, contextData, tx.userMessage, todayISO, tx.historyBlock);
     }
     return buildChatSystemPrompt(today, intent, contextData);
 };

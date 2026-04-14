@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const Wallet = require('../model/walletModel');
 const Category = require('../model/categoryModel');
 const Transaction = require('../model/transactionModel');
+const Saving = require('../model/savingModel');
 const { createHttpError } = require('./financeErrors');
 const { resolveWalletId, resolveCategoryId } = require('./financeEntityResolver');
 
@@ -55,8 +56,14 @@ const transactionFinance = {
                 throw createHttpError(403, 'You are not authorized to use this category!');
             }
 
-            if (type === 'EXPENSE' && Number(wallet.balance) < Number(amount)) {
-                throw createHttpError(400, 'Not enough balance in wallet!');
+            // Tính số dư khả dụng = tổng số dư - tiền đang dành cho tiết kiệm
+            const reservedRows = await Saving.getReservedAmountPerWallet(userId);
+            const reservedEntry = reservedRows.find(r => r.wallet_id === resolvedWalletId);
+            const reservedAmount = reservedEntry ? Number(reservedEntry.reserved) : 0;
+            const availableBalance = Number(wallet.balance) - reservedAmount;
+
+            if (type === 'EXPENSE' && availableBalance < Number(amount)) {
+                throw createHttpError(400, `Số dư khả dụng không đủ! Khả dụng: ${availableBalance.toLocaleString('vi-VN')} ₫ (tổng ${Number(wallet.balance).toLocaleString('vi-VN')} ₫ - đang tiết kiệm ${reservedAmount.toLocaleString('vi-VN')} ₫).`);
             }
 
             const balanceChange = type === 'INCOME' ? Number(amount) : -Number(amount);

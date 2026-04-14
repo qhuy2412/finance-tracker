@@ -2,6 +2,8 @@ const db = require('../config/db');
 const Debt = require("../model/debtModel");
 const { v4: uuidv4 } = require('uuid');
 const financeService = require('../services/financeService');
+const Saving = require('../model/savingModel');
+
 const getAllDebts = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -59,13 +61,16 @@ const payDebt = async (req, res) => {
             [wallet_id, userId]
         );
         const wallet = wallets[0];
-        if (!wallet) {
-            await connection.rollback();
-            return res.status(400).json({ message: "Wallet not found" });
-        }
-        if (debt.type === 'BORROW' && parseFloat(wallet.balance) < pay_amount) {
-            await connection.rollback();
-            return res.status(400).json({ message: "Balance of this wallet is not enough for this payment!" });
+        if (debt.type === 'BORROW') {
+            const reservedRows = await Saving.getReservedAmountPerWallet(userId);
+            const reservedEntry = reservedRows.find(r => r.wallet_id === wallet_id);
+            const reservedAmount = reservedEntry ? Number(reservedEntry.reserved) : 0;
+            const availableBalance = Number(wallet.balance) - reservedAmount;
+
+            if (availableBalance < pay_amount) {
+                await connection.rollback();
+                return res.status(400).json({ message: `Số dư khả dụng của ví không đủ để thanh toán nợ! Khả dụng: ${availableBalance.toLocaleString('vi-VN')} ₫ (tổng ${Number(wallet.balance).toLocaleString('vi-VN')} ₫ - đang tiết kiệm ${reservedAmount.toLocaleString('vi-VN')} ₫).` });
+            }
         }
         // Update balance of wallet
         const balanceChange = debt.type === 'BORROW' ? -pay_amount : pay_amount;
@@ -134,6 +139,25 @@ const deleteDebt = async (req, res) => {
             balanceChange = paidAmount - amount;
         } else if (debt.type === 'LEND') {
             balanceChange = amount - paidAmount;
+        }
+        
+        if (balanceChange < 0) {
+            const reservedRows = await Saving.getReservedAmountPerWallet(userId);
+            const reservedEntry = reservedRows.find(r => r.wallet_id === debt.wallet_id);
+            const reservedAmount = reservedEntry ? Number(reservedEntry.reserved) : 0;
+            const availableBalance = Number(debt.wallet_balance || 0); // we need to query wallet balance!
+            
+            // let's fetch wallet balance just to be safe
+            const [wallets] = await connection.execute(
+                'SELECT balance FROM wallets WHERE id = ? FOR UPDATE',
+                [debt.wallet_id]
+            );
+            const walletBalance = wallets.length ? Number(wallets[0].balance) : 0;
+            const currentAvailable = walletBalance - reservedAmount;
+
+            if (currentAvailable + balanceChange < 0) {
+                throw new Error(`Không thể xoá! Số dư khả dụng của ví sẽ xuống âm. Khả dụng: ${currentAvailable.toLocaleString('vi-VN')} ₫ (tổng ${walletBalance.toLocaleString('vi-VN')} ₫ - đang tiết kiệm ${reservedAmount.toLocaleString('vi-VN')} ₫).`);
+            }
         }
 
         await connection.execute(

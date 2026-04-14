@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { v4: uuidv4 } = require('uuid');
 const { resolveWalletId } = require('./financeEntityResolver');
 const { createHttpError } = require('./financeErrors');
+const Saving = require('../model/savingModel');
 
 const transferFinance = {
     async createTransfer(userId, params = {}) {
@@ -47,8 +48,15 @@ const transferFinance = {
 
             const fromWallet = wallets.find((w) => w.id === resolvedFromId);
             if (!fromWallet) throw createHttpError(400, 'From wallet not found');
-            if (Number(fromWallet.balance) < Number(amount)) {
-                throw createHttpError(400, 'Original wallet does not have enough balance to perform the transfer!');
+
+            // Kiểm tra số dư khả dụng (trừ tiền đang dành cho tiết kiệm)
+            const reservedRows = await Saving.getReservedAmountPerWallet(userId);
+            const reservedEntry = reservedRows.find(r => r.wallet_id === resolvedFromId);
+            const reservedAmount = reservedEntry ? Number(reservedEntry.reserved) : 0;
+            const availableBalance = Number(fromWallet.balance) - reservedAmount;
+
+            if (availableBalance < Number(amount)) {
+                throw createHttpError(400, `Số dư khả dụng không đủ để chuyển tiền! Khả dụng: ${availableBalance.toLocaleString('vi-VN')} ₫ (tổng ${Number(fromWallet.balance).toLocaleString('vi-VN')} ₫ - đang tiết kiệm ${reservedAmount.toLocaleString('vi-VN')} ₫).`);
             }
 
             const transferId = uuidv4().trim();

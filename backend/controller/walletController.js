@@ -1,5 +1,6 @@
 const db = require("../config/db");
 const Wallet = require("../model/walletModel");
+const Saving = require("../model/savingModel");
 const { v4: uuidv4 } = require('uuid');
 const financeService = require('../services/financeService');
 
@@ -46,6 +47,17 @@ const updateWallet = async (req, res) => {
                 return res.status(400).json({ message: "Wallet name already exists!" });
             }
         }
+
+        // Kiểm tra: số dư mới không được nhỏ hơn số tiền đang khóa trong savings
+        const reservedRows = await Saving.getReservedAmountPerWallet(userId);
+        const reserved = reservedRows.find(r => r.wallet_id === walletId);
+        const reservedAmount = reserved ? Number(reserved.reserved) : 0;
+        if (Number(balance) < reservedAmount) {
+            return res.status(400).json({
+                message: `Không thể cập nhật số dư! Ví này đang có ${reservedAmount.toLocaleString('vi-VN')} ₫ được dành cho tiết kiệm. Số dư mới phải ≥ ${reservedAmount.toLocaleString('vi-VN')} ₫.`
+            });
+        }
+
         await Wallet.updateWallet(walletId, name, type, balance);
         return res.status(200).json({ message: "Wallet updated successfully!" });
     } catch (error) {

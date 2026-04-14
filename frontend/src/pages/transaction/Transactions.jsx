@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Plus, ArrowDownCircle, ArrowUpCircle, Trash2, Edit, Loader2, X, Search, FilterX, Activity, ArrowDownRight, ArrowUpRight, Camera } from "lucide-react";
+import { Plus, ArrowDownCircle, ArrowUpCircle, Trash2, Edit, Loader2, X, Search, FilterX, Activity, ArrowDownRight, ArrowUpRight, Camera, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getWallets } from "../../services/wallet.service";
 import { getTransactions, createTransaction, deleteTransaction, updateTransaction } from "../../services/transaction.service";
 import { getCategories } from "../../services/category.service";
+import { getReservedAmounts } from "../../services/saving.service";
 import { toast } from "react-toastify";
 import ConfirmModal from "../../components/ConfirmModal";
 import api from "../../services/api";
@@ -21,6 +22,7 @@ export default function Transactions() {
   const [wallets, setWallets] = useState([]);
   const [categories, setCategories] = useState([]);
   const [allTransactions, setAllTransactions] = useState([]);
+  const [reserved, setReserved] = useState({}); // { walletId: reservedAmount }
   const [loading, setLoading] = useState(true);
 
   // Filter State
@@ -59,15 +61,16 @@ export default function Transactions() {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const [walletData, catData] = await Promise.all([
+      const [walletData, catData, reservedData] = await Promise.all([
         getWallets(),
-        getCategories()
+        getCategories(),
+        getReservedAmounts(),
       ]);
       const activeWallets = walletData || [];
       setWallets(activeWallets);
       setCategories(catData || []);
+      setReserved(reservedData || {});
 
-      // Concurrently fetch all transactions for all wallets to create a global list
       if (activeWallets.length > 0) {
         setModalWalletId(activeWallets[0].id.toString());
         await fetchAllTransactions();
@@ -531,6 +534,33 @@ export default function Transactions() {
                   {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
               </div>
+
+              {/* Savings warning */}
+              {(() => {
+                if (formData.type !== 'EXPENSE' || !modalWalletId || !formData.amount) return null;
+                const wallet = wallets.find(w => w.id.toString() === modalWalletId.toString());
+                if (!wallet) return null;
+                const res = Number(reserved[wallet.id] || 0);
+                if (res <= 0) return null;
+                const available = Number(wallet.balance) - res;
+                const afterSpend = Number(wallet.balance) - Number(formData.amount);
+                if (afterSpend >= available) return null; // still within safe zone
+                const overAmount = available - afterSpend > 0 ? available - afterSpend : 0;
+                const eatInto = Math.min(Number(formData.amount), res) - Math.max(0, available - Number(wallet.balance) + Number(formData.amount));
+                const spendingIntoSavings = afterSpend < available;
+                return spendingIntoSavings ? (
+                  <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm">
+                    <AlertTriangle size={16} className="text-amber-500 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-semibold text-amber-700">Cảnh báo: Chi vào tiền tiết kiệm</p>
+                      <p className="text-amber-600 text-xs mt-0.5">
+                        Ví này đang dành <span className="font-bold">{Number(res).toLocaleString('vi-VN')} ₫</span> cho tiết kiệm.
+                        Số dư khả dụng chỉ còn <span className="font-bold">{available >= 0 ? available.toLocaleString('vi-VN') : 0} ₫</span>.
+                      </p>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
 
               <div className="space-y-1.5">
                 <Label>Loại giao dịch</Label>

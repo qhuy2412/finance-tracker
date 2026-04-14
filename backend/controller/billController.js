@@ -62,7 +62,7 @@ const extractBill = async (req, res) => {
             parsed = JSON.parse(raw);
         } catch {
             console.error('Groq returned non-JSON:', raw);
-            return res.status(422).json({ message: 'Không thể phân tích hóa đơn. Vui lòng thử ảnh khác.' });
+            return res.status(422).json({ message: 'Không thể phâna tích hóa đơn. Vui lòng thử ảnh khác.' });
         }
 
         const amount = typeof parsed.amount === 'number' && parsed.amount > 0

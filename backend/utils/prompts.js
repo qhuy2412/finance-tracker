@@ -22,7 +22,7 @@ function sanitizeContextForChatPrompt(contextData) {
     return out;
 }
 
-// ─── Prompt tĩnh: chỉ build 1 lần ────────────────────────────────────
+// ─── Phần tĩnh của router prompt — build 1 lần duy nhất ──────────────
 const ROUTER_PROMPT = `
 Bạn là kỹ sư điều phối dữ liệu của FinTra.
 Chat có thể GHI DUY NHẤT loại giao dịch thu/chi thường (INCOME/EXPENSE) sau bước xác nhận của người dùng.
@@ -86,6 +86,27 @@ NGỮ CẢNH HỘI THOẠI TRƯỚC (nếu có bên dưới):
 - Dùng để hiểu đại từ và câu tiếp nối ("thế tháng trước?", "ví Momo đó").
 - Ưu tiên READ + tables phù hợp nếu là câu hỏi phân tích tiếp theo.`.trim();
 
+// Phần tiêu đề tĩnh của chat system prompt — build 1 lần
+const CHAT_SYSTEM_STATIC_HEADER = `
+Bạn là trợ lý tài chính thông minh của ứng dụng FinTra.
+
+=== CÁC VIỆC BẠN CÓ THỂ GIÚP NGƯỜI DÙNG ===
+1. XEM SỐ DƯ & VÍ: tổng số dư, số dư từng ví, liệt kê ví.
+2. CHI TIÊU & THU NHẬP: tổng chi/thu theo thời gian, giao dịch gần đây, cơ cấu danh mục, so sánh tháng.
+3. NGÂN SÁCH: còn lại bao nhiêu, % đã dùng, danh mục vượt hạn mức.
+4. MỤC TIÊU TIẾT KIỆM: tiến độ, còn bao nhiêu để đạt mục tiêu.
+5. NỢ: ai nợ ai, tổng nợ, nợ sắp đến hạn.
+6. CHUYỂN TIỀN NỘI BỘ: lịch sử, tần suất chuyển.
+7. PHÂN TÍCH & TƯ VẤN: chi tiêu hợp lý không, danh mục tốn kém nhất, gợi ý tiết kiệm.
+
+=== NHỮNG VIỆC BẠN KHÔNG LÀM ===
+- KHÔNG tự ghi vào cơ sở dữ liệu; KHÔNG hứa tạo ví, chuyển tiền, nợ, ngân sách qua chat.
+- KHÔNG bịa số liệu; KHÔNG trả lời ngoài phạm vi tài chính cá nhân.
+
+=== DỮ LIỆU NỘI BỘ (JSON — KHÔNG SAO CHÉP RA CHO NGƯỜI DÙNG) ===
+Chuyển thành câu tiếng Việt tự nhiên. KHÔNG lặp tên cột, KHÔNG in JSON/markdown bảng.
+Gợi ý: balance → số dư; name → tên ví/danh mục; amount → số tiền; transaction_date → ngày; type → loại thu/chi; note → ghi chú.`.trim();
+
 // ─── buildRouterUserContent ───────────────────────────────────────────
 const buildRouterUserContent = (message, previousMessages) => {
     const rows = Array.isArray(previousMessages) ? previousMessages.slice(-ROUTER_CHAT_HISTORY_MAX) : [];
@@ -100,6 +121,7 @@ const buildRouterUserContent = (message, previousMessages) => {
     return `${ROUTER_PROMPT}${historyBlock}\n\nCâu chat hiện tại: ${message}`;
 };
 
+// ─── buildTransactionExtractPrompt ───────────────────────────────────
 const buildTransactionExtractPrompt = (today, contextData, userMessage, todayISO) => {
     const ctx = {
         wallets: (contextData.wallets || []).map(w => ({ name: w.name, balance: w.balance, type: w.type })),
@@ -155,46 +177,32 @@ Tin nhắn người dùng cần trích: ${JSON.stringify(userMessage)}
 // ─── buildChatSystemPrompt ─────────────────────────────────────────────
 const buildChatSystemPrompt = (today, intent, contextData) => {
     const safeContext = sanitizeContextForChatPrompt(contextData);
-    return `
-Bạn là trợ lý tài chính thông minh của ứng dụng FinTra.
+
+    // FIX: Tái dùng CHAT_SYSTEM_STATIC_HEADER thay vì tạo lại toàn bộ string mỗi lần.
+    // Chỉ phần động (today, intent, context) được inject vào đây.
+    const statusLines = Object.entries({
+        wallets: contextData?.wallets,
+        categories: contextData?.categories,
+        transactions: contextData?.transactions,
+        transfers: contextData?.transfers,
+        saving_goals: contextData?.saving_goals,
+        debts: contextData?.debts,
+        budgets: contextData?.budgets,
+    }).map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.length : 'missing'}`).join('\n');
+
+    return `${CHAT_SYSTEM_STATIC_HEADER}
+
 Hôm nay là: ${today}.
-
-=== CÁC VIỆC BẠN CÓ THỂ GIÚP NGƯỜI DÙNG ===
-1. XEM SỐ DƯ & VÍ: tổng số dư, số dư từng ví, liệt kê ví.
-2. CHI TIÊU & THU NHẬP: tổng chi/thu theo thời gian, giao dịch gần đây, cơ cấu danh mục, so sánh tháng.
-3. NGÂN SÁCH: còn lại bao nhiêu, % đã dùng, danh mục vượt hạn mức.
-4. MỤC TIÊU TIẾT KIỆM: tiến độ, còn bao nhiêu để đạt mục tiêu.
-5. NỢ: ai nợ ai, tổng nợ, nợ sắp đến hạn.
-6. CHUYỂN TIỀN NỘI BỘ: lịch sử, tần suất chuyển.
-7. PHÂN TÍCH & TƯ VẤN: chi tiêu hợp lý không, danh mục tốn kém nhất, gợi ý tiết kiệm.
-
-=== NHỮNG VIỆC BẠN KHÔNG LÀM ===
-- KHÔNG tự ghi vào cơ sở dữ liệu; KHÔNG hứa tạo ví, chuyển tiền, nợ, ngân sách qua chat.
-- KHÔNG bịa số liệu; KHÔNG trả lời ngoài phạm vi tài chính cá nhân.
-
-=== DỮ LIỆU NỘI BỘ (JSON — KHÔNG SAO CHÉP RA CHO NGƯỜI DÙNG) ===
-Chuyển thành câu tiếng Việt tự nhiên. KHÔNG lặp tên cột, KHÔNG in JSON/markdown bảng.
-Gợi ý: balance → số dư; name → tên ví/danh mục; amount → số tiền; transaction_date → ngày; type → loại thu/chi; note → ghi chú.
-
 Intent người dùng: "${intent}"
 ${JSON.stringify(safeContext, null, 2)}
 
 === TÌNH TRẠNG DỮ LIỆU ===
-${Object.entries({
-    wallets: contextData?.wallets,
-    categories: contextData?.categories,
-    transactions: contextData?.transactions,
-    transfers: contextData?.transfers,
-    saving_goals: contextData?.saving_goals,
-    debts: contextData?.debts,
-    budgets: contextData?.budgets,
-}).map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.length : 'missing'}`).join('\n')}
+${statusLines}
 
 === QUY TẮC TRẢ LỜI ===
 - Tiếng Việt, thân thiện, ngắn gọn — như nói chuyện, không như báo cáo DB.
 - Format số tiền: 1.500.000 đ.
-- Nếu bảng cần dùng có độ dài 0 hoặc "missing" → KHÔNG suy ra 0, nói rõ "chưa có dữ liệu" và gợi ý bổ sung trong app.
-`.trim();
+- Nếu bảng cần dùng có độ dài 0 hoặc "missing" → KHÔNG suy ra 0, nói rõ "chưa có dữ liệu" và gợi ý bổ sung trong app.`;
 };
 
 // ─── buildSystemPrompt: giữ interface cũ, delegate sang 2 hàm mới ────

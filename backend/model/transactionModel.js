@@ -23,6 +23,11 @@ const Transaction = {
     getAllTransactionsByUserId: async (userId) => {
         const [rows] = await db.execute('SELECT * FROM transactions WHERE user_id = ? order by transaction_date desc, created_at desc', [userId]);
         return rows;
+    },
+    getRecentTransactionsByUserId: async (userId, limit) => {
+        const [rows] = await db.execute('SELECT * FROM transactions WHERE user_id = ? order by transaction_date desc, created_at desc LIMIT ?', [userId, limit]);
+        return rows;
     }
+
 };
 module.exports = Transaction;

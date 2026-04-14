@@ -56,7 +56,7 @@ CẤU TRÚC JSON BẮT BUỘC TRẢ VỀ:
 QUY TẮC PHÂN LOẠI:
 
 A) Không phải đọc dữ liệu cá nhân / tán gẫu / kiến thức chung (chào hỏi, "trời đẹp nhỉ", mẹo tiết kiệm chung):
-   - "is_finance": false, "intent": "GENERAL", "tables": [], "direct_reply": Tôi chỉ là trợ lý tài chính cho bạn, không hỗ trợ những vấn đề nằm ngoài lĩnh vực tài chính cá nhân.
+   - "is_finance": false, "intent": "GENERAL", "tables": [], "direct_reply": "Tôi chỉ là trợ lý tài chính cho bạn, không hỗ trợ những vấn đề nằm ngoài lĩnh vực tài chính cá nhân" hoặc chào lại.
 
 B) GHI giao dịch THU / CHI thường (không phải chuyển ví, không phải nợ):
    - Ví dụ: "ghi 50k ăn phở ví Momo", "chi 100k cà phê", "nhận lương 10tr", "thu nhập 2 triệu hôm nay".

@@ -107,7 +107,7 @@ const WRITE_INTENTS = new Set(['CREATE', 'UPDATE', 'DELETE', 'TRANSFER', 'DEBT',
 const TABLE_FETCHERS = {
     wallets: (userId) => Wallet.getAllWalletsByUserId(userId),
     categories: (userId) => Category.getAllCategoriesByUserId(userId),
-    transactions: (userId) => Transaction.getRecentTransactionsByUserId(userId, 50), // dùng query có LIMIT
+    transactions: (userId) => Transaction.getRecentTransactionsByUserId(userId, 50),
     transfers: (userId) => Transfer.getAllTrasnfersByUserId(userId),
     saving_goals: (userId) => Saving.getAllSavingsByUserId(userId),
     debts: (userId) => Debt.getAllDebtsByUserId(userId),
@@ -311,12 +311,15 @@ const handleChat = async (req, res) => {
                 .map(t =>
                     TABLE_FETCHERS[t](userId)
                         .then(rows => { contextData[t] = rows; })
-                        .catch(() => { contextErrors[t] = true; contextData[t] = null; })
+                        .catch((err) => {
+                            contextErrors[t] = true; contextData[t] = null;
+                        })
                 )
         );
 
         const failedTables = Object.keys(contextErrors);
         if (failedTables.length > 0) {
+            console.error('[Chat] Tables that failed:', failedTables);
             return sendReply('Mình chưa truy xuất được dữ liệu tài chính của bạn ngay lúc này. Bạn thử lại sau vài giây nhé.', { saveToHistory: false });
         }
 

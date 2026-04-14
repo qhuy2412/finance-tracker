@@ -94,6 +94,11 @@ const withdrawSaving = async (req, res) => {
             return res.status(400).json({ message: "Số tiền rút không được lớn hơn số tiền hiện có trong mục tiêu!" });
         }
 
+        const walletContribution = await Saving.getWalletContribution(id, wallet_id);
+        if (Number(withdraw_amount) > walletContribution) {
+            return res.status(400).json({ message: `Ví này chỉ đóng góp ${walletContribution.toLocaleString('vi-VN')} ₫ vào mục tiêu, không thể rút nhiều hơn!` });
+        }
+
         const newAmount = Number(goal.current_amount) - Number(withdraw_amount);
         const status = newAmount >= Number(goal.target_amount) ? 'COMPLETED' : 'IN_PROGRESS';
 

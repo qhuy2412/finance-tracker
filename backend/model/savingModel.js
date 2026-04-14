@@ -61,47 +61,29 @@ const Saving = {
         return rows;
     },
 
-    // Số tiền đang "reserved" theo từng ví, tính dựa trên tỉ lệ đóng góp (DEPOSIT) vào current_amount
+    // Số tiền đang "reserved" theo từng ví (DEPOSIT - WITHDRAW của các mục tiêu IN_PROGRESS)
     getReservedAmountPerWallet: async (userId) => {
-        const [goals] = await db.execute(
-            `SELECT id, current_amount FROM saving_goals WHERE user_id = ? AND status = 'IN_PROGRESS' AND current_amount > 0`,
+        const [rows] = await db.execute(
+            `SELECT st.wallet_id,
+                    SUM(CASE WHEN st.type = 'DEPOSIT' THEN st.amount ELSE -st.amount END) AS reserved
+             FROM saving_transactions st
+             JOIN saving_goals sg ON st.saving_id = sg.id
+             WHERE sg.user_id = ? AND sg.status = 'IN_PROGRESS'
+             GROUP BY st.wallet_id
+             HAVING reserved > 0`,
             [userId]
         );
-        
-        if (goals.length === 0) return [];
-        
-        const goalIds = goals.map(g => g.id);
-        const placeholders = goalIds.map(() => '?').join(',');
-        
-        // Lấy lịch sử nạp tiền (DEPOSIT) của các mục tiêu này
-        const [deposits] = await db.execute(
-            `SELECT saving_id, wallet_id, SUM(amount) as deposited 
-             FROM saving_transactions 
-             WHERE type = 'DEPOSIT' AND saving_id IN (${placeholders})
-             GROUP BY saving_id, wallet_id`,
-            goalIds
+        return rows;
+    },
+
+    getWalletContribution: async (savingId, walletId) => {
+        const [rows] = await db.execute(
+            `SELECT SUM(CASE WHEN type = 'DEPOSIT' THEN amount ELSE -amount END) AS contribution
+             FROM saving_transactions
+             WHERE saving_id = ? AND wallet_id = ?`,
+            [savingId, walletId]
         );
-        
-        const reservedMap = {};
-        
-        for (const goal of goals) {
-            const goalDeposits = deposits.filter(d => d.saving_id === goal.id);
-            const totalDeposited = goalDeposits.reduce((sum, d) => sum + Number(d.deposited), 0);
-            const currentC = Number(goal.current_amount);
-            
-            if (totalDeposited > 0 && currentC > 0) {
-                for (const d of goalDeposits) {
-                    const wId = d.wallet_id;
-                    const walletShare = (Number(d.deposited) / totalDeposited) * currentC;
-                    reservedMap[wId] = (reservedMap[wId] || 0) + walletShare;
-                }
-            }
-        }
-        
-        return Object.entries(reservedMap).map(([wallet_id, reserved]) => ({
-            wallet_id,
-            reserved: Math.round(reserved)
-        }));
+        return rows[0].contribution ? Number(rows[0].contribution) : 0;
     },
 };
 

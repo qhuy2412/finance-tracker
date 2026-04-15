@@ -4,7 +4,7 @@ const { createHttpError } = require('./financeErrors');
 
 const savingFinance = {
     async createSaving(userId, params = {}) {
-        const { name, target_amount, current_amount, deadline, linked_wallet_id } = params;
+        const { name, target_amount, current_amount, deadline } = params;
         if (!name || target_amount === undefined) {
             throw createHttpError(400, 'Name, target_amount are required!');
         }
@@ -19,8 +19,7 @@ const savingFinance = {
             name,
             Number(target_amount),
             current_amount === undefined ? 0 : Number(current_amount),
-            deadline || null,
-            linked_wallet_id || null
+            deadline || null
         );
         return { message: 'Saving goal created successfully!' };
     },

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Plus, Trash2, Loader2, X, Target, PiggyBank, PlusCircle,
-  CheckCircle2, Wallet, MinusCircle, History, ArrowDownCircle, ArrowUpCircle
+  CheckCircle2, MinusCircle, History, ArrowDownCircle, ArrowUpCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +51,7 @@ export default function Savings() {
 
   // Form: Tạo mục tiêu
   const [formData, setFormData] = useState({
-    name: "", target_amount: "", current_amount: 0, deadline: "", linked_wallet_id: "",
+    name: "", target_amount: "", current_amount: 0, deadline: "",
   });
 
   // Form: Nạp tiền
@@ -100,7 +100,6 @@ export default function Savings() {
   const openCreateModal = () => {
     setFormData({
       name: "", target_amount: "", current_amount: 0, deadline: "",
-      linked_wallet_id: wallets.length > 0 ? wallets[0].id : "",
     });
     setIsCreateModalOpen(true);
   };
@@ -118,7 +117,6 @@ export default function Savings() {
         target_amount: Number(formData.target_amount),
         current_amount: Number(formData.current_amount || 0),
         deadline: formData.deadline || null,
-        linked_wallet_id: formData.linked_wallet_id || null,
       });
       await fetchAll();
       setIsCreateModalOpen(false);
@@ -135,7 +133,7 @@ export default function Savings() {
     setActiveGoal(goal);
     setDepositData({
       add_amount: "",
-      wallet_id: goal.linked_wallet_id || (wallets.length > 0 ? wallets[0].id : ""),
+      wallet_id: wallets.length > 0 ? wallets[0].id : "",
       note: "",
     });
     setIsDepositModalOpen(true);
@@ -169,7 +167,7 @@ export default function Savings() {
     setActiveGoal(goal);
     setWithdrawData({
       withdraw_amount: "",
-      wallet_id: goal.linked_wallet_id || (wallets.length > 0 ? wallets[0].id : ""),
+      wallet_id: wallets.length > 0 ? wallets[0].id : "",
       note: "",
     });
     setIsWithdrawModalOpen(true);
@@ -309,8 +307,6 @@ export default function Savings() {
             const target = Number(goal.target_amount);
             const progress = target > 0 ? (current / target) * 100 : 0;
             const cappedProgress = Math.min(progress, 100);
-            const linkedWallet = wallets.find((w) => w.id === goal.linked_wallet_id);
-
             return (
               <div key={goal.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all duration-300 flex flex-col group relative">
 
@@ -327,11 +323,6 @@ export default function Savings() {
                         {fmtDate(goal.deadline)}
                       </span>
                     </p>
-                    {linkedWallet && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600 bg-indigo-50 rounded-full px-2 py-0.5 mt-0.5 w-fit">
-                        <Wallet size={9} /> {linkedWallet.name}
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-1 ml-2">
                     <button
@@ -444,12 +435,6 @@ export default function Savings() {
                   <p className="text-[10px] text-slate-400">Không bắt buộc</p>
                 </div>
               </div>
-              <WalletSelect
-                label={<>Ví mặc định <span className="text-slate-400 font-normal text-xs">(để theo dõi số dư khả dụng)</span></>}
-                value={formData.linked_wallet_id}
-                onChange={(e) => setFormData({ ...formData, linked_wallet_id: e.target.value })}
-              />
-              <p className="text-[11px] text-slate-400 -mt-2">Bạn vẫn có thể nạp tiền từ ví khác bất cứ lúc nào</p>
               <div className="pt-1">
                 <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold text-base shadow-md">
                   {isSubmitting ? <Loader2 className="animate-spin w-5 h-5 mr-2" /> : null}

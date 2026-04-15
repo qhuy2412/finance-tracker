@@ -17,11 +17,11 @@ const Saving = {
         return rows[0];
     },
 
-    createSaving: async (savingId, userId, name, target_amount, current_amount, deadline, linked_wallet_id) => {
+    createSaving: async (savingId, userId, name, target_amount, current_amount, deadline) => {
         await db.execute(
-            `INSERT INTO saving_goals (id, user_id, name, target_amount, current_amount, deadline, status, linked_wallet_id) 
-             VALUES (?, ?, ?, ?, ?, ?, 'IN_PROGRESS', ?)`,
-            [savingId, userId, name, target_amount, current_amount, deadline || null, linked_wallet_id || null]
+            `INSERT INTO saving_goals (id, user_id, name, target_amount, current_amount, deadline, status) 
+             VALUES (?, ?, ?, ?, ?, ?, 'IN_PROGRESS')`,
+            [savingId, userId, name, target_amount, current_amount, deadline || null]
         );
     },
 
@@ -63,17 +63,25 @@ const Saving = {
 
     // Số tiền đang "reserved" theo từng ví (DEPOSIT - WITHDRAW của các mục tiêu IN_PROGRESS)
     getReservedAmountPerWallet: async (userId) => {
-        const [rows] = await db.execute(
-            `SELECT st.wallet_id,
-                    SUM(CASE WHEN st.type = 'DEPOSIT' THEN st.amount ELSE -st.amount END) AS reserved
-             FROM saving_transactions st
-             JOIN saving_goals sg ON st.saving_id = sg.id
-             WHERE sg.user_id = ? AND sg.status = 'IN_PROGRESS'
-             GROUP BY st.wallet_id
-             HAVING reserved > 0`,
-            [userId]
-        );
-        return rows;
+        try {
+            const [rows] = await db.execute(
+                `SELECT st.wallet_id,
+                        SUM(CASE WHEN st.type = 'DEPOSIT' THEN st.amount ELSE -st.amount END) AS reserved
+                 FROM saving_transactions st
+                 JOIN saving_goals sg ON st.saving_id = sg.id
+                 WHERE sg.user_id = ? AND sg.status = 'IN_PROGRESS'
+                 GROUP BY st.wallet_id
+                 HAVING reserved > 0`,
+                [userId]
+            );
+            return rows;
+        } catch (error) {
+            // Backward compatibility: some environments may not have the table yet.
+            if (error?.code === 'ER_NO_SUCH_TABLE') {
+                return [];
+            }
+            throw error;
+        }
     },
 
     getWalletContribution: async (savingId, walletId) => {

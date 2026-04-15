@@ -186,7 +186,7 @@ const refreshToken = async (req, res) => {
             success: true 
         });
     } catch (error) {
-        console.error('Refresh token error:', error);
+        console.log('Refresh token error:', error);
         return res.status(500).json({ message: error.message });
     }
 };

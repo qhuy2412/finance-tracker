@@ -93,6 +93,21 @@ const Saving = {
         );
         return rows[0].contribution ? Number(rows[0].contribution) : 0;
     },
+
+    // Lấy net contribution (DEPOSIT - WITHDRAW) của từng ví cho 1 mục tiêu
+    // Dùng cho tính năng giải ngân: hoàn trả đúng ví theo số tiền thực tế đang giữ
+    getNetContributionPerWallet: async (savingId) => {
+        const [rows] = await db.execute(
+            `SELECT wallet_id,
+                    SUM(CASE WHEN type = 'DEPOSIT' THEN amount ELSE -amount END) AS net_amount
+             FROM saving_transactions
+             WHERE saving_id = ?
+             GROUP BY wallet_id
+             HAVING net_amount > 0`,
+            [savingId]
+        );
+        return rows.map(r => ({ wallet_id: r.wallet_id, net_amount: Number(r.net_amount) }));
+    },
 };
 
 module.exports = Saving;

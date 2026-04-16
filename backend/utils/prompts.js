@@ -153,6 +153,9 @@ Quy tắc trích xuất:
     - Nếu list có từ 2 ví trở lên → TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ CHỌN/ĐOÁN/CHỌN ĐẠI (không mặc định ví đầu tiên).
       Khi đó phải đặt "wallet_name" là chuỗi rỗng "" và thêm "chưa rõ ví" vào missing.
 - category_name: trùng tên danh mục trong list, đúng loại INCOME/EXPENSE.
+  - Nếu user đề cập rõ danh mục hoặc mô tả đủ rõ (vd: "ăn phở" → Ăn uống, "lương" → Lương) → chọn danh mục phù hợp nhất.
+  - Nếu mô tả KHÔNG ĐỦ RÕ để suy ra danh mục (vd: "chi tiêu", "mua đồ", "50k") → TUYỆT ĐỐI KHÔNG TỰ CHỌN/ĐOÁN/CHỌN "Khác" hay bất kỳ danh mục nào.
+    Khi đó phải đặt "category_name" là chuỗi rỗng "" và thêm "chưa rõ danh mục" vào missing.
 - transaction_date: nếu user không nói rõ thì tự dùng ngày mặc định (${todayISO}), KHÔNG thêm vào missing.
 - note: tùy chọn, có thể "" và KHÔNG bao giờ là lý do để hỏi thêm.
 - missing: CHỈ gồm các thiếu hụt thực sự cần để tạo giao dịch:

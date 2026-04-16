@@ -173,6 +173,7 @@ const handleChat = async (req, res) => {
             );
         }
 
+        let pendingCorrection = null;
         const pending = pendingActions.get(sessionId);
         if (pending?.kind === 'transaction') {
             if (Date.now() - pending.createdAt > PENDING_TTL_MS) {
@@ -189,6 +190,9 @@ const handleChat = async (req, res) => {
                     return sendReply(formatTransactionErrorVi(e.message), { saveToHistory: false });
                 }
             } else {
+                // User đang sửa (không phải xác nhận, không phải hủy hoàn toàn)
+                // Giữ lại params cũ làm hint cho extraction, rồi re-run
+                pendingCorrection = pending.params;
                 pendingActions.delete(sessionId);
             }
         }
@@ -218,6 +222,7 @@ const handleChat = async (req, res) => {
 
         const isTxnCreate =
             intent === 'CREATE_TRANSACTION' ||
+            pendingCorrection !== null ||   // user đang sửa giao dịch đề xuất
             (intent === 'GENERAL' && looksLikeTransactionCreate(message));
 
 
@@ -255,10 +260,15 @@ const handleChat = async (req, res) => {
                     return `${label}: ${m.content}`;
                 }).join('\n');
 
+                // Nếu user đang sửa giao dịch đề xuất, inject hint để LLM giữ lại thông tin cũ
+                const correctionHint = pendingCorrection
+                    ? `\n\n[GỢI Ý: Đây là sửa đổi giao dịch vừa đề xuất. Giữ nguyên các trường KHÔNG được đề cập trong tin nhắn mới. Giao dịch cũ: ví="${pendingCorrection.wallet_name}", danh mục="${pendingCorrection.category_name}", loại=${pendingCorrection.type}, số tiền=${pendingCorrection.amount}, ngày=${pendingCorrection.transaction_date}]`
+                    : '';
+
                 const proposalPrompt = buildSystemPrompt(
                     todayVn, 'CREATE_TRANSACTION',
                     { wallets, categories: catsForTxn },
-                    { transactionExtract: { userMessage: message, todayISO, historyBlock: routerHistoryLines } }
+                    { transactionExtract: { userMessage: message, todayISO, historyBlock: routerHistoryLines + correctionHint } }
                 );
                 const proposalResult = await chatModel.generateContent(proposalPrompt);
                 const rawProposal = proposalResult.response.text().replace(/```json|```/g, '').trim();

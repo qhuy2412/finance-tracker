@@ -33,6 +33,12 @@ export const deleteSaving = async (id) => {
   return response.data;
 };
 
+// Giải ngân: hoàn trả toàn bộ tiền về đúng ví đã đóng góp (tự động theo net contribution)
+export const disburseSaving = async (id) => {
+  const response = await api.post(`/savings/${id}/disburse`);
+  return response.data;
+};
+
 // { walletId: reservedAmount } — số tiền đang "khóa" trong savings theo từng ví
 export const getReservedAmounts = async () => {
   const response = await api.get("/savings/reserved");

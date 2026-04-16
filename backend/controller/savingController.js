@@ -111,6 +111,67 @@ const withdrawSaving = async (req, res) => {
     }
 };
 
+// Giải ngân: tự động hoàn trả toàn bộ tiền về đúng ví đã đóng góp, đánh dấu COMPLETED
+const disburseSaving = async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const db = require('../config/db');
+
+    try {
+        const goal = await Saving.getSavingById(id, userId);
+        if (!goal) return res.status(404).json({ message: 'Không tìm thấy mục tiêu tiết kiệm!' });
+        if (Number(goal.current_amount) <= 0) {
+            return res.status(400).json({ message: 'Mục tiêu không còn tiền để giải ngân!' });
+        }
+
+        // Tính net contribution từng ví (đã trừ các lần rút trước đó)
+        const contributions = await Saving.getNetContributionPerWallet(id);
+        if (!contributions.length) {
+            return res.status(400).json({ message: 'Không tìm thấy thông tin đóng góp của các ví!' });
+        }
+
+        const connection = await db.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            for (const { wallet_id, net_amount } of contributions) {
+                // Cộng tiền về ví
+                await connection.execute(
+                    'UPDATE wallets SET balance = balance + ? WHERE id = ? AND user_id = ?',
+                    [net_amount, wallet_id, userId]
+                );
+                // Ghi lịch sử WITHDRAW cho từng ví
+                await connection.execute(
+                    `INSERT INTO saving_transactions (id, saving_id, wallet_id, type, amount, note)
+                     VALUES (?, ?, ?, 'WITHDRAW', ?, ?)`,
+                    [require('uuid').v4(), id, wallet_id, net_amount, 'Giải ngân mục tiêu']
+                );
+            }
+
+            // Đặt current_amount = 0, status = COMPLETED
+            await connection.execute(
+                'UPDATE saving_goals SET current_amount = 0, status = ? WHERE id = ?',
+                ['COMPLETED', id]
+            );
+
+            await connection.commit();
+
+            const totalDisbursed = contributions.reduce((s, c) => s + c.net_amount, 0);
+            res.status(200).json({
+                message: `Giải ngân thành công! Đã hoàn trả ${totalDisbursed.toLocaleString('vi-VN')} ₫ về ${contributions.length} ví.`,
+                disbursed: contributions,
+            });
+        } catch (e) {
+            await connection.rollback();
+            throw e;
+        } finally {
+            connection.release();
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // Lịch sử nạp/rút của 1 mục tiêu
 const getSavingHistory = async (req, res) => {
     const { id } = req.params;
@@ -138,4 +199,4 @@ const getReservedByWallet = async (req, res) => {
     }
 };
 
-module.exports = { createSaving, getAllSavings, deleteSaving, depositSaving, withdrawSaving, getSavingHistory, getReservedByWallet };
+module.exports = { createSaving, getAllSavings, deleteSaving, depositSaving, withdrawSaving, disburseSaving, getSavingHistory, getReservedByWallet };

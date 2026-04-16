@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   getSavings, createSaving, depositToSaving, withdrawFromSaving,
-  getSavingHistory, deleteSaving, getReservedAmounts
+  getSavingHistory, deleteSaving, getReservedAmounts, disburseSaving
 } from "../../services/saving.service";
 import { getWallets } from "../../services/wallet.service";
 import { toast } from "react-toastify";
@@ -46,6 +46,7 @@ export default function Savings() {
   const [activeGoal, setActiveGoal] = useState(null);
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [disburseConfirm, setDisburseConfirm] = useState({ open: false, goal: null });
 
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
 
@@ -79,6 +80,21 @@ export default function Savings() {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ── Disburse ─────────────────────────────────────
+  const handleDisburse = async (goal) => {
+    setIsSubmitting(true);
+    try {
+      const result = await disburseSaving(goal.id);
+      await fetchAll();
+      toast.success(result.message || 'Giải ngân thành công!');
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Lỗi giải ngân!');
+    } finally {
+      setIsSubmitting(false);
+      setDisburseConfirm({ open: false, goal: null });
     }
   };
 
@@ -212,8 +228,10 @@ export default function Savings() {
   };
 
   // ── Computed ─────────────────────────────────────
-  const totalSaved = savings.reduce((acc, s) => acc + Number(s.current_amount), 0);
-  const totalTarget = savings.reduce((acc, s) => acc + Number(s.target_amount), 0);
+  // Loại bỏ các mục tiêu đã giải ngân toàn bộ khỏi phần tính tổng
+  const activeSavings = savings.filter(s => !(s.status === "COMPLETED" && Number(s.current_amount) === 0));
+  const totalSaved = activeSavings.reduce((acc, s) => acc + Number(s.current_amount), 0);
+  const totalTarget = activeSavings.reduce((acc, s) => acc + Number(s.target_amount), 0);
   const overallProgress = totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0;
 
   if (loading) {
@@ -279,7 +297,7 @@ export default function Savings() {
       </div>
 
       {/* Overall Progress */}
-      {savings.length > 0 && (
+      {activeSavings.length > 0 && (
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
           <div className="flex justify-between items-end mb-3">
             <span className="text-sm font-semibold text-slate-600">Tiến độ chung</span>
@@ -306,7 +324,7 @@ export default function Savings() {
             const current = Number(goal.current_amount);
             const target = Number(goal.target_amount);
             const progress = target > 0 ? (current / target) * 100 : 0;
-            const cappedProgress = Math.min(progress, 100);
+            const cappedProgress = isCompleted ? 100 : Math.min(progress, 100);
             return (
               <div key={goal.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all duration-300 flex flex-col group relative">
 
@@ -348,22 +366,26 @@ export default function Savings() {
                     <div>
                       <p className="text-2xl font-black tracking-tight text-slate-800">{fmtAmt(current)}</p>
                       <p className="text-xs font-medium text-slate-400 mt-0.5">
-                        {target - current > 0 ? `Cần ${fmtAmt(target - current)} nữa` : "Đã đạt mục tiêu!"}
+                        {isCompleted 
+                          ? (current === 0 ? "Đã giải ngân toàn bộ khoản tiết kiệm" : "Đã đạt mục tiêu!")
+                          : `Cần ${fmtAmt(Math.max(0, target - current))} nữa`}
                       </p>
                     </div>
                   </div>
-                  <div className="mt-3 mb-1">
-                    <div className="flex justify-between text-xs font-bold mb-1.5">
-                      <span className={isCompleted ? "text-green-600" : "text-blue-600"}>{cappedProgress.toFixed(1)}%</span>
-                      <span className="text-slate-400">{fmtAmt(target)}</span>
+                  {!(isCompleted && current === 0) && (
+                    <div className="mt-3 mb-1">
+                      <div className="flex justify-between text-xs font-bold mb-1.5">
+                        <span className={isCompleted ? "text-green-600" : "text-blue-600"}>{cappedProgress.toFixed(1)}%</span>
+                        <span className="text-slate-400">{fmtAmt(target)}</span>
+                      </div>
+                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-1000 ease-out ${isCompleted ? "bg-green-500" : "bg-blue-500"}`}
+                          style={{ width: `${cappedProgress}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-1000 ease-out ${isCompleted ? "bg-green-500" : "bg-blue-500"}`}
-                        style={{ width: `${cappedProgress}%` }}
-                      />
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Footer Actions */}
@@ -376,17 +398,44 @@ export default function Savings() {
                       <PlusCircle size={14} /> Nạp tiền
                     </button>
                     {current > 0 && (
-                      <button
-                        onClick={() => openWithdrawModal(goal)}
-                        className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold text-orange-500 hover:text-orange-600 hover:bg-orange-50 py-2 rounded-xl transition-colors"
-                      >
-                        <MinusCircle size={14} /> Rút tiền
-                      </button>
+                      <>
+                        <button
+                          onClick={() => openWithdrawModal(goal)}
+                          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold text-orange-500 hover:text-orange-600 hover:bg-orange-50 py-2 rounded-xl transition-colors"
+                        >
+                          <MinusCircle size={14} /> Rút tiền
+                        </button>
+                        <button
+                          onClick={() => setDisburseConfirm({ open: true, goal })}
+                          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold text-green-600 hover:text-green-700 hover:bg-green-50 py-2 rounded-xl transition-colors"
+                          title="Giải ngân toàn bộ về các ví đã đóng góp"
+                        >
+                          <CheckCircle2 size={14} /> Giải ngân
+                        </button>
+                      </>
                     )}
                   </div>
                 ) : (
-                  <div className="px-5 py-3 bg-green-50/50 border-t border-green-100">
+                  <div className="px-5 py-3 bg-green-50/50 border-t border-green-100 space-y-2">
                     <p className="text-center text-sm font-bold text-green-600">Đã hoàn thành mục tiêu! 🎉</p>
+                    {Number(goal.current_amount) > 0 && (
+                      <>
+                        <button
+                          onClick={() => setDisburseConfirm({ open: true, goal })}
+                          disabled={isSubmitting}
+                          className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-green-700 hover:text-green-800 hover:bg-green-100 py-2 rounded-xl transition-colors border border-green-300 bg-green-50"
+                        >
+                          <CheckCircle2 size={14} /> Giải ngân toàn bộ
+                        </button>
+                        <button
+                          onClick={() => openWithdrawModal(goal)}
+                          disabled={isSubmitting}
+                          className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-orange-500 hover:text-orange-600 hover:bg-orange-50 py-2 rounded-xl transition-colors border border-orange-200"
+                        >
+                          <MinusCircle size={14} /> Rút một phần
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -616,6 +665,16 @@ export default function Savings() {
         title="Xóa mục tiêu tiết kiệm"
         message="Bạn có chắc chắn muốn xóa mục tiêu này? Hành động này không thể hoàn tác."
         confirmText="Xóa"
+      />
+
+      {/* Confirm Giải ngân */}
+      <ConfirmModal
+        isOpen={disburseConfirm.open}
+        onClose={() => setDisburseConfirm({ open: false, goal: null })}
+        onConfirm={() => handleDisburse(disburseConfirm.goal)}
+        title="Xác nhận giải ngân"
+        message={`Toàn bộ ${fmtAmt(disburseConfirm.goal?.current_amount)} sẽ được hoàn trả tự động về các ví đã đóng góp theo đúng tỷ lệ. Bạn có chắc chắn không?`}
+        confirmText="Giải ngân ngay"
       />
     </div>
   );

@@ -124,7 +124,7 @@ export default function Transactions() {
       setFormData({
         type: "EXPENSE",
         amount: "",
-        categoryId: categories.length > 0 ? categories[0].id.toString() : "",
+        categoryId: "",
         transaction_date: new Date().toISOString().slice(0, 10),
         note: ""
       });
@@ -566,14 +566,14 @@ export default function Transactions() {
                 <Label>Loại giao dịch</Label>
                 <div className="grid grid-cols-2 gap-2">
                   <div
-                    onClick={() => setFormData({ ...formData, type: "EXPENSE" })}
+                    onClick={() => setFormData({ ...formData, type: "EXPENSE", categoryId: "" })}
                     className={`text-center p-2 rounded-lg border text-sm cursor-pointer font-medium transition-colors ${formData.type === "EXPENSE" ? "border-red-500 bg-red-50 text-red-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                   >
                     Khoản chi
                   </div>
                   <div
-                    onClick={() => setFormData({ ...formData, type: "INCOME" })}
+                    onClick={() => setFormData({ ...formData, type: "INCOME", categoryId: "" })}
                     className={`text-center p-2 rounded-lg border text-sm cursor-pointer font-medium transition-colors ${formData.type === "INCOME" ? "border-green-500 bg-green-50 text-green-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                   >

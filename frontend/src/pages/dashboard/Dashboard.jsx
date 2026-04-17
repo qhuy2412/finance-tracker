@@ -65,7 +65,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div>
-              <p className="text-blue-100 font-medium mb-1">Tổng Số Dư Ví</p>
+              <p className="text-blue-100 font-medium mb-1">Tổng Số Dư Tài Khoản</p>
               <h3 className="text-3xl font-black tracking-tight">{fmtAmt(totalBalance)}</h3>
             </div>
           </div>

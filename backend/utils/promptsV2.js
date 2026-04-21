@@ -110,10 +110,11 @@ ${DB_SCHEMA}
 
 QUY TẮC BẮT BUỘC:
 1. Chỉ SELECT. KHÔNG INSERT/UPDATE/DELETE/DROP.
-2. Mọi bảng PHẢI có điều kiện user_id = '${userId}' (qua WHERE hoặc JOIN).
+2. Mọi bảng tĩnh PHẢI có điều kiện user_id = '${userId}' (qua WHERE hoặc JOIN).
 3. JOIN categories: AND (c.user_id IS NULL OR c.user_id = '${userId}')
-4. budgets KHÔNG có cột spent — JOIN transactions để tính.
+4. SO SÁNH NGÂN SÁCH (budgets): JOIN budgets b VỚI transactions t. 'b.amount' là ngân sách, 'SUM(t.amount)' là chi tiêu. b.period lưu ngày 1 của tháng, VD filter tháng này: b.period = DATE_FORMAT(CURDATE(), '%Y-%m-01').
 5. saving_transactions không có user_id — JOIN saving_goals để filter.
+6. ĐẠI TỪ CHỈ ĐỊNH: Nếu user nói "mục này", "tháng trước", "hôm đó"... PHẢI đọc Lịch sử hội thoại để thay bằng giá trị thật (VD: WHERE c.name = 'Ăn uống' CHỨ KHÔNG ĐƯỢC viết c.name = 'mục này').
 
 MYSQL ONLY_FULL_GROUP_BY — LỖI HAY GẶP NHẤT:
    Mọi cột non-aggregate trong SELECT (kể cả trong CASE WHEN / IF) phải nằm trong GROUP BY hoặc trong hàm aggregate.

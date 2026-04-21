@@ -42,7 +42,7 @@ setInterval(cleanupExpiredPending, CLEANUP_INTERVAL_MS);
 
 const isConfirm = (text) => {
     const t = (text || '').toLowerCase().trim();
-    return /^(đồng ý|ok|okay|xác nhận|confirm|làm luôn|làm tiếp|thực hiện|chuẩn|được rồi|được|có)$/i.test(t) ||
+    return /^(đồng ý|ok|okay|xác nhận|confirm|làm luôn|làm tiếp|thực hiện|chuẩn|được rồi|được|có|đúng|chính xác|chuẩn rồi|ôk)$/i.test(t) ||
         t.includes('đồng ý') || t.includes('xác nhận') ||
         t.includes('làm luôn') || t.includes('thực hiện');
 };

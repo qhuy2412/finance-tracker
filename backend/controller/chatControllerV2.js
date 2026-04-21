@@ -350,6 +350,7 @@ const handleChatV2 = async (req, res) => {
             try {
                 const [result] = await db.execute(sql);
                 rows = result;
+                console.log(rows);
             } catch (e) {
                 console.error('[SqlExec] Error:', e.message, '| SQL:', sql);
                 return sendReply('Mình bị lỗi khi truy vấn dữ liệu. Bạn thử hỏi lại nhé.');

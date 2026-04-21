@@ -75,13 +75,15 @@ Người dùng: ${userMessage}
 ---
 ## PHÂN LOẠI action (chọn 1 trong 3):
 
-**CREATE_TRANSACTION** — Muốn GHI khoản thu/chi.
-   Điều kiện: có số tiền cụ thể HOẶC đang trả lời khi bot hỏi thêm.
-   Câu mơ hồ không có số tiền ("ăn phở", "mua đồ") → KHÔNG phải CREATE_TRANSACTION.
+**CREATE_TRANSACTION** — CHỈ DÙNG khi người dùng muốn GHI THÊM một bản ghi thu/chi mới.
+   Điều kiện: Hành động phải là ghi chép tiền bạc (và CÓ SỐ TIỀN cụ thể).
+   ⚠ TỪ CHỐI TẤT CẢ YÊU CẦU SAU: "Xóa", "Sửa", "Hủy", "Bỏ", "Tạo ví", "Thêm ví", "Xóa ví", "Đổi tên" (Bất kỳ thao tác thay đổi dữ liệu nào không phải là ghi chép tiêu dùng/thu nhập mới) → BẮT BUỘC CHUYỂN VÀO GENERAL.
+   Câu mơ hồ không có số tiền ("ăn phở", "đổ xăng") → KHÔNG dùng CREATE_TRANSACTION.
 
-**QUERY_DATA** — Muốn XEM / PHÂN TÍCH / THỐNG KÊ (số dư, lịch sử, báo cáo...).
+**QUERY_DATA** — CHỈ DÙNG để XEM / PHÂN TÍCH / LẤY báo cáo (Ví dụ: "Tôi đang có bao nhiêu tiền?", "Tháng này tiêu bao nhiêu?").
+   ⚠ TUYỆT ĐỐI CHỈ DÙNG CÂU LỆNH SELECT.
 
-**GENERAL** — Chat thường hoặc yêu cầu tạo ví / chuyển tiền / xóa dữ liệu (không hỗ trợ qua chat).
+**GENERAL** — Yêu cầu tạo/sửa/xóa ví, sửa/xóa giao dịch, chuyển tiền nội bộ, tạo danh mục. Trợ lý sẽ hiển thị general_reply từ chối và hướng dẫn dùng App.
 
 ---
 ## ĐIỀN THÊM tuỳ action:
@@ -144,7 +146,21 @@ const buildSummaryPrompt = (userMessage, sqlExplanation, sqlRows, historyBlock =
     if (!sqlRows || sqlRows.length === 0) {
         rowsText = '(Không có dữ liệu)';
     } else {
-        const limited = sqlRows.slice(0, 150);
+        // Tiền xử lý dữ liệu: convert các chuỗi số '2000000.00' thành số nguyên 2000000 
+        // để giúp LLM không bị ảo giác (hallucinate) do phần thập phân.
+        const cleanRows = sqlRows.map(row => {
+            const obj = {};
+            for (const [k, v] of Object.entries(row)) {
+                if (typeof v === 'string' && /^-?\d+\.\d+$/.test(v)) {
+                    obj[k] = Number(v);
+                } else {
+                    obj[k] = v;
+                }
+            }
+            return obj;
+        });
+
+        const limited = cleanRows.slice(0, 150);
         const full = JSON.stringify(limited, null, 2);
         rowsText = full.length > MAX_SUMMARY_CHARS
             ? full.slice(0, MAX_SUMMARY_CHARS) + `\n... (đã cắt bớt, tổng ${sqlRows.length} dòng)`
@@ -168,7 +184,9 @@ ${rowsText}
 ---
 Hãy tổng hợp kết quả trên thành câu trả lời tự nhiên, thân thiện bằng Tiếng Việt.
 - Format số tiền: 1.500.000 đ
+- ⚠ ĐỌC ĐÚNG SỐ TIỀN: Đếm thật kỹ số chữ số 0. Ví dụ "2000000" là 2.000.000 đ (2 triệu, 6 số 0). TUYỆT ĐỐI không bị ảo giác làm tròn lên thành 20 triệu.
 - KHÔNG hiển thị bất kỳ trường ID nào (id, user_id, wallet_id, category_id, saving_id...).
+- 💡 Xử lý logic hiển thị: Nếu mục tiêu tiết kiệm có \`status\` là "COMPLETED" nhưng \`current_amount\` là 0, hãy giải thích rõ là "Mục tiêu đã hoàn thành nhưng tiền đã được rút về ví".
 - Nếu câu hỏi là follow-up ("thế tháng trước?") → dùng lịch sử hội thoại để trả lời liên mạch.
 - Nếu không có dữ liệu → thông báo nhẹ nhàng, không bịa đặt.
 - Chỉ trả lời văn bản thuần, KHÔNG có JSON hay markdown code block.`.trim();

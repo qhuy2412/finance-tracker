@@ -319,8 +319,7 @@ const handleChat = async (req, res) => {
                 const params = { wallet_name: walletRow.name, category_name: catRow.name, type, amount, transaction_date: tDate, note };
                 pendingActions.set(sessionId, { kind: 'transaction', params, createdAt: Date.now() });
 
-                const reply = proposal.confirmation_question ||
-                    `Bạn xác nhận ghi ${type === 'EXPENSE' ? 'chi' : 'thu'} ${amount.toLocaleString('vi-VN')} đ từ ví "${walletRow.name}", danh mục "${catRow.name}", ngày ${tDate}? Trả lời "Đồng ý" hoặc "Hủy".`;
+                const reply = `Bạn xác nhận thông tin sau:\n- Định dạng: ${type === 'EXPENSE' ? 'Chi tiêu' : 'Thu nhập'}\n- Số tiền: ${amount.toLocaleString('vi-VN')} đ\n- Ví: "${walletRow.name}"\n- Danh mục: "${catRow.name}"\n- Ngày: ${tDate}\n\nTrả lời "Đồng ý" để lưu hoặc "Hủy" để bỏ qua.`;
 
                 return sendReply(reply);
             } catch (e) {

@@ -8,11 +8,11 @@ const Saving = require('../model/savingModel');
 const db = require('../config/db');
 
 const {
-    buildRouterPrompt,
-    buildSqlPrompt,
+    buildUnifiedPrompt,
     buildSqlFixPrompt,
     buildSummaryPrompt,
     sanitizeHistoryLine,
+    sanitizeUserId,
     ALLOWED_TABLES,
 } = require('../utils/promptsV2');
 const financeService = require('../services/financeService');
@@ -126,10 +126,14 @@ const validateSql = (sql, userId) => {
         if (!ALLOWED_TABLES.has(tbl)) return { ok: false, reason: `Bảng không được phép: ${tbl}` };
     }
 
-    // Bắt buộc userId xuất hiện trong SQL
-    // saving_transactions không có user_id trực tiếp nhưng JOIN qua saving_goals có → vẫn pass
-    if (!trimmed.includes(String(userId))) {
-        return { ok: false, reason: 'SQL thiếu user_id filter' };
+    // Bắt buộc userId xuất hiện dưới dạng [alias.]user_id = 'uuid'
+    // - Chấp nhận: user_id='x', t.user_id='x', sg.user_id='x'...
+    // - Từ chối: user_id != 'x', user_id LIKE '%x%'
+    // saving_transactions JOIN qua saving_goals nên sẽ có sg.user_id = '...'
+    const escapedId = userId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const userIdRx = new RegExp(`(?:\\w+\\.)?user_id\\s*=\\s*'${escapedId}'`, 'i');
+    if (!userIdRx.test(trimmed)) {
+        return { ok: false, reason: 'SQL thiếu [alias.]user_id = \'uuid\' filter' };
     }
 
     return { ok: true };
@@ -154,26 +158,19 @@ const handleChatV2 = async (req, res) => {
             await Chat.createSession(sessionId, userId);
         }
 
-        const sendReply = async (reply, { fireAndForget = false } = {}) => {
-            const saves = Promise.all([
+        // send reply — trả response ngay, save DB async (fire-and-forget)
+        const sendReply = (reply) => {
+            Promise.all([
                 Chat.saveMessage(uuidv4(), sessionId, 'user', message),
                 Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply),
                 Chat.touchSession(sessionId),
-            ]);
-            if (fireAndForget) {
-                saves.catch(e => console.error('[Chat] Save failed:', e));
-            } else {
-                await saves;
-            }
+            ]).catch(e => console.error('[Chat] Save failed:', e));
             return res.json({ reply, session_id: sessionId });
         };
 
         // ── Shortcut: trivial greeting ────────────────────────────────────
         if (isTrivialGreeting(message)) {
-            return sendReply(
-                'Chào bạn! Mình là trợ lý FinTra. Bạn cần xem báo cáo tài chính hay ghi chi tiêu nhỉ?',
-                { fireAndForget: true }
-            );
+            return sendReply('Chào bạn! Mình là trợ lý FinTra. Bạn cần xem báo cáo tài chính hay ghi chi tiêu nhỉ?');
         }
 
         // ── Pending confirmation flow ─────────────────────────────────────
@@ -216,36 +213,38 @@ const handleChatV2 = async (req, res) => {
         });
         const todayISO = new Date().toISOString().slice(0, 10);
 
-        // ── Bước 1: ROUTER — phân loại ý định ───────────────────────────
-        const routerPrompt = buildRouterPrompt(today, wallets, categories, message, historyBlock);
-        let routerResult;
+        // ── Bước 1: 1 LLM call — phân loại + sinh SQL (nếu cần) ──────────────────────
+        const unifiedPrompt = buildUnifiedPrompt(today, userId, wallets, categories, message, historyBlock);
+        let unifiedResult;
         try {
-            const raw = await callLlm(routerPrompt);
-            routerResult = parseJson(raw);
+            const raw = await callLlm(unifiedPrompt);
+            unifiedResult = parseJson(raw);
         } catch (e) {
-            console.error('[RouterV2] Parse failed:', e.message);
-            return sendReply('Mình chưa hiểu bạn muốn làm gì. Bạn thử diễn đạt lại nhé!');
+            console.error('[UnifiedLLM] Parse failed:', e.message);
+            return sendReply('Mình chưa hiểu ý bạn. Bạn thử diễn đạt lại nhé!');
         }
 
-        const action = routerResult.action || 'GENERAL';
+        const action = unifiedResult.action || 'GENERAL';
 
-        // ── GENERAL / REJECT ─────────────────────────────────────────────
+        // ── GENERAL / REJECT ───────────────────────────────────────────────────
         if (action === 'GENERAL') {
-            const reply = routerResult.general_reply || READ_ONLY_HINT;
+            const reply = unifiedResult.general_reply || READ_ONLY_HINT;
             return sendReply(reply);
         }
 
-        // ── CREATE_TRANSACTION ───────────────────────────────────────────
+        // ── CREATE_TRANSACTION ───────────────────────────────────────────────────
         if (action === 'CREATE_TRANSACTION') {
-            const tx = routerResult.transaction || {};
+            const tx = unifiedResult.transaction || {};
 
-            // Kết hợp hint khi user đang sửa giao dịch cũ
+            // Kết hợp hint khi user đang sửa giao dịch cũ.
+            // Chỉ fallback khi LLM trả về giá trị rỗng hoặc literal "null" string.
+            const isBlank = (v) => !v || v === 'null';
             if (pendingCorrection) {
-                tx.wallet_name = tx.wallet_name || pendingCorrection.wallet_name;
-                tx.category_name = tx.category_name || pendingCorrection.category_name;
-                tx.type = tx.type || pendingCorrection.type;
-                tx.amount = tx.amount || pendingCorrection.amount;
-                tx.transaction_date = tx.transaction_date || pendingCorrection.transaction_date;
+                if (isBlank(tx.wallet_name)) tx.wallet_name = pendingCorrection.wallet_name;
+                if (isBlank(tx.category_name)) tx.category_name = pendingCorrection.category_name;
+                if (isBlank(tx.type)) tx.type = pendingCorrection.type;
+                if (!(tx.amount > 0)) tx.amount = pendingCorrection.amount;
+                if (isBlank(tx.transaction_date)) tx.transaction_date = pendingCorrection.transaction_date;
             }
 
             const missing = Array.isArray(tx.missing) ? tx.missing : [];
@@ -296,19 +295,14 @@ const handleChatV2 = async (req, res) => {
 
         // ── QUERY_DATA: Text-to-SQL flow ────────────────────────────────────
         if (action === 'QUERY_DATA') {
-            // Bước 2: LLM sinh SQL
-            const sqlPrompt = buildSqlPrompt(today, userId, message, historyBlock);
-            let sqlObj;
-            try {
-                const raw = await callLlm(sqlPrompt);
-                sqlObj = parseJson(raw);
-            } catch (e) {
-                console.error('[SqlGen] Parse failed:', e.message);
-                return sendReply('Mình chưa tổng hợp được câu truy vấn. Bạn thử hỏi lại theo cách khác nhé.');
+            // SQL được sinh sẵn trong cùng 1 LLM call ở trên
+            let sql = unifiedResult.sql || '';
+            let explanation = unifiedResult.sql_explanation || '';
+
+            if (!sql || !sql.trim().toUpperCase().startsWith('SELECT')) {
+                console.error('[QueryData] No valid SQL in unified result');
+                return sendReply('Mình chưa tổng hợp được câu trưy vấn. Bạn thử hỏi lại theo cách khác nhé.');
             }
-
-
-            let { sql, explanation } = sqlObj;
 
             // Bước 3a: Whitelist + keyword security check
             const secCheck = validateSql(sql, userId);
@@ -361,8 +355,8 @@ const handleChatV2 = async (req, res) => {
                 return sendReply('Mình bị lỗi khi truy vấn dữ liệu. Bạn thử hỏi lại nhé.');
             }
 
-            // Bước 5: LLM format kết quả thành câu trả lời tự nhiên
-            const summaryPrompt = buildSummaryPrompt(message, explanation, rows);
+            // Bước 5: LLM format kết quả thành câu trả lời tự nhiên (có history để xử lý follow-up)
+            const summaryPrompt = buildSummaryPrompt(message, explanation, rows, historyBlock);
             let finalReply;
             try {
                 finalReply = await callLlm(summaryPrompt);

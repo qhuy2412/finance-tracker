@@ -210,6 +210,18 @@ const handleChat = async (req, res) => {
             console.warn('[Router] JSON parse failed. Raw:', rawJson?.slice(0, 200));
         }
 
+        // Bắt lỗi AI "ảo giác" trả về CREATE_TRANSACTION cho những câu cộc lốc như "ăn phở", "momo" (không số, không ngữ cảnh)
+        if (intent === 'CREATE_TRANSACTION' && !pendingCorrection) {
+            const hasNumberOrKeyword = /\d/.test(message) || /(ghi|chi|thu|tiêu|xài|mua|bán)/i.test(message);
+            const lastMsg = routerHistory.length > 0 ? routerHistory[routerHistory.length - 1] : null;
+            const isAnsweringMissingInfo = lastMsg && lastMsg.role === 'assistant' && lastMsg.content.includes('Mình cần thêm thông tin');
+
+            if (!hasNumberOrKeyword && !isAnsweringMissingInfo) {
+                intent = 'GENERAL'; // Ép hạ cấp thành chat bình thường
+                tables = [];
+            }
+        }
+
         const looksLikeTransferCommand = /chuyển\s+tiền\s+(từ|sang|vào|giữa)|chuyển\s+giữa\s+các\s+ví/i.test(message);
         const lowerMessage = (message || '').toLowerCase();
         const looksLikeOtherWrite =
@@ -275,6 +287,7 @@ const handleChat = async (req, res) => {
                 const allowedMissing = [
                     'chưa rõ ví', 'chưa rõ danh mục',
                     'chưa rõ loại giao dịch (thu hay chi)', 'chưa rõ số tiền',
+                    'chưa có ví này trong hệ thống'
                 ];
                 const missing = Array.isArray(proposal?.missing)
                     ? proposal.missing.filter(m => allowedMissing.includes(String(m || '').trim().toLowerCase()))

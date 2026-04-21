@@ -59,10 +59,11 @@ A) Không phải đọc dữ liệu cá nhân / tán gẫu / kiến thức chung
    - "is_finance": false, "intent": "GENERAL", "tables": [], "direct_reply": "Tôi chỉ là trợ lý tài chính cho bạn, không hỗ trợ những vấn đề nằm ngoài lĩnh vực tài chính cá nhân" hoặc chào lại.
 
 B) GHI giao dịch THU / CHI thường (không phải chuyển ví, không phải nợ):
-   - Ví dụ: "ghi 50k ăn phở ví Momo", "chi 100k cà phê", "nhận lương 10tr", "thu nhập 2 triệu hôm nay".
+   - ĐỂ LÀ CREATE_TRANSACTION, TIN NHẮN BẮT BUỘC PHẢI CHỨA SỐ TIỀN (vd: 50k, 100 ngàn, 2 triệu), HOẶC TỪ KHÓA GHI CHÉP (vd: "ghi", "chi", "thu").
+   - KHI KHÔNG CÓ SỐ TIỀN / KHÔNG CÓ NGỮ CẢNH: Các cụm từ cộc lốc như "ăn phở", "uống cà phê", "tiền mặt" BẮT BUỘC LÀ "GENERAL".
+   - Ví dụ: "ghi 50k ăn phở ví Momo", "chi 100k", "nhận lương 10tr".
    - "intent": "CREATE_TRANSACTION", "is_finance": true, "tables": ["wallets", "categories"], "direct_reply": "".
-   - Không dùng CREATE_TRANSACTION cho: chuyển tiền giữa ví, tạo ví, tạo danh mục, nợ, ngân sách.
-   - CHÚ Ý: Nếu người dùng đang trả lời CÂU HỎI BỔ SUNG thông tin cho giao dịch vừa nãy (vd: "từ ví tiền mặt", "mục ăn uống"), hãy CỨ TIẾP TỤC trả về "intent": "CREATE_TRANSACTION" để duy trì luồng ghi chép.
+   - CHÚ Ý (NGOẠI LỆ): Nếu và chỉ nếu trong ngữ cảnh hội thoại TRƯỚC ĐÓ trợ lý VỪA MỚI HỎI bổ sung thông tin (vd: "Bạn chi từ ví nào?"), thì user trả lời "ăn phở" hay "tiền mặt" MỚI ĐƯỢC tính là "CREATE_TRANSACTION".
 
 B2) Các yêu cầu GHI / SỬA / XÓA khác (tạo ví, chuyển tiền, nợ, ngân sách, sửa/xóa giao dịch…):
     - Phân loại intent tương ứng (CREATE, UPDATE, DELETE, TRANSFER, DEBT, SAVING). "tables" có thể rỗng.
@@ -147,15 +148,14 @@ Quy tắc trích xuất:
 - type: "INCOME" hoặc "EXPENSE", phải khớp với category.type của danh mục đã chọn.
 - amount: số dương VND (50k → 50000; 1,5tr / 1.5tr → 1500000).
 - wallet_name: trùng tên ví trong list.
-  - Nếu user nêu rõ ví (vd: "ví Momo", "từ ví Tiền mặt") → chọn đúng ví đó.
+  - Nếu user nêu rõ ví (vd: "ví Momo") VÀ ví đó CÓ TRONG list → chọn đúng ví đó.
+  - Nếu user nêu rõ ví nhưng tên ví đó KHÔNG CÓ TRONG list → TUYỆT ĐỐI không chọn bừa ví khác. Đặt "wallet_name": "" và thêm "chưa có ví này trong hệ thống" vào missing.
   - Nếu user KHÔNG nêu ví:
     - Nếu list chỉ có đúng 1 ví → có thể dùng ví đó.
-    - Nếu list có từ 2 ví trở lên → TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ CHỌN/ĐOÁN/CHỌN ĐẠI (không mặc định ví đầu tiên).
-      Khi đó phải đặt "wallet_name" là chuỗi rỗng "" và thêm "chưa rõ ví" vào missing.
+    - Nếu list có từ 2 ví trở lên → TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ CHỌN. Đặt "wallet_name": "" và thêm "chưa rõ ví" vào missing.
 - category_name: trùng tên danh mục trong list, đúng loại INCOME/EXPENSE.
-  - Nếu user đề cập rõ danh mục hoặc mô tả đủ rõ (vd: "ăn phở" → Ăn uống, "lương" → Lương) → chọn danh mục phù hợp nhất.
-  - Nếu mô tả KHÔNG ĐỦ RÕ để suy ra danh mục (vd: "chi tiêu", "mua đồ", "50k") → TUYỆT ĐỐI KHÔNG TỰ CHỌN/ĐOÁN/CHỌN "Khác" hay bất kỳ danh mục nào.
-    Khi đó phải đặt "category_name" là chuỗi rỗng "" và thêm "chưa rõ danh mục" vào missing.
+  - Nếu user đề cập rõ danh mục hoặc mô tả đủ rõ VÀ có danh mục phù hợp trong list → chọn danh mục đó.
+  - Nếu mô tả KHÔNG ĐỦ RÕ hoặc KHÔNG CÓ danh mục nào phù hợp trong list → TUYỆT ĐỐI KHÔNG chọn bừa. Đặt "category_name": "" và thêm "chưa rõ danh mục" vào missing.
 - transaction_date: nếu user không nói rõ thì tự dùng ngày mặc định (${todayISO}), KHÔNG thêm vào missing.
 - note: tùy chọn, có thể "" và KHÔNG bao giờ là lý do để hỏi thêm.
 - missing: CHỈ gồm các thiếu hụt thực sự cần để tạo giao dịch:

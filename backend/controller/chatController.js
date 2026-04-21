@@ -149,14 +149,12 @@ const handleChat = async (req, res) => {
             await Chat.createSession(sessionId, userId);
         }
 
-        const sendReply = async (reply, { saveToHistory = true, fireAndForget = false } = {}) => {
-            const saves = saveToHistory
-                ? Promise.all([
-                    Chat.saveMessage(uuidv4(), sessionId, 'user', message),
-                    Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply),
-                    Chat.touchSession(sessionId),
-                ])
-                : Chat.touchSession(sessionId);
+        const sendReply = async (reply, { fireAndForget = false } = {}) => {
+            const saves = Promise.all([
+                Chat.saveMessage(uuidv4(), sessionId, 'user', message),
+                Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply),
+                Chat.touchSession(sessionId),
+            ]);
 
             if (fireAndForget) {
                 saves.catch(e => console.error('[Chat] Save failed:', e));
@@ -180,14 +178,14 @@ const handleChat = async (req, res) => {
                 pendingActions.delete(sessionId);
             } else if (isCancel(message)) {
                 pendingActions.delete(sessionId);
-                return sendReply('Mình đã hủy, không ghi giao dịch.', { saveToHistory: false });
+                return sendReply('Mình đã hủy, không ghi giao dịch.');
             } else if (isConfirm(message)) {
                 pendingActions.delete(sessionId);
                 try {
                     await financeService.createTransaction(userId, pending.params);
                     return sendReply('Đã ghi giao dịch thành công. Bạn cần gì thêm không?');
                 } catch (e) {
-                    return sendReply(formatTransactionErrorVi(e.message), { saveToHistory: false });
+                    return sendReply(formatTransactionErrorVi(e.message));
                 }
             } else {
                 // User đang sửa (không phải xác nhận, không phải hủy hoàn toàn)
@@ -239,7 +237,7 @@ const handleChat = async (req, res) => {
                     Category.getAllCategoriesByUserId(userId),
                 ]);
             } catch {
-                return sendReply('Mình chưa tải được ví hoặc danh mục. Bạn thử lại sau nhé.', { saveToHistory: false });
+                return sendReply('Mình chưa tải được ví hoặc danh mục. Bạn thử lại sau nhé.');
             }
 
             if (!wallets.length) return sendReply('Bạn chưa có ví nào. Hãy tạo ví trong app trước, rồi nhắn mình ghi chi tiêu nhé.');
@@ -298,11 +296,11 @@ const handleChat = async (req, res) => {
                 const catType = String(catRow?.type || '').toUpperCase();
 
                 if (!walletRow || !catRow || (type !== 'INCOME' && type !== 'EXPENSE') || !Number.isFinite(amount) || amount <= 0 || !tDate) {
-                    return sendReply('Mình chưa chốt được ví, danh mục, loại hoặc số tiền hợp lệ. Bạn nói lại đầy đủ (ví, danh mục, số tiền, thu hay chi) giúp mình nhé.', { saveToHistory: false });
+                    return sendReply('Mình chưa chốt được ví, danh mục, loại hoặc số tiền hợp lệ. Bạn nói lại đầy đủ (ví, danh mục, số tiền, thu hay chi) giúp mình nhé.');
                 }
 
                 if (catType !== type) {
-                    return sendReply(`Danh mục "${catRow.name}" là loại ${catType === 'INCOME' ? 'thu nhập' : 'chi tiêu'}, không khớp với giao dịch "${type}". Bạn chọn lại giúp mình nhé.`, { saveToHistory: false });
+                    return sendReply(`Danh mục "${catRow.name}" là loại ${catType === 'INCOME' ? 'thu nhập' : 'chi tiêu'}, không khớp với giao dịch "${type}". Bạn chọn lại giúp mình nhé.`);
                 }
 
                 const params = { wallet_name: walletRow.name, category_name: catRow.name, type, amount, transaction_date: tDate, note };
@@ -311,15 +309,15 @@ const handleChat = async (req, res) => {
                 const reply = proposal.confirmation_question ||
                     `Bạn xác nhận ghi ${type === 'EXPENSE' ? 'chi' : 'thu'} ${amount.toLocaleString('vi-VN')} đ từ ví "${walletRow.name}", danh mục "${catRow.name}", ngày ${tDate}? Trả lời "Đồng ý" hoặc "Hủy".`;
 
-                return sendReply(reply, { saveToHistory: false });
+                return sendReply(reply);
             } catch (e) {
                 console.error('[Transaction proposal]', e.message || e);
-                return sendReply('Mình chưa hiểu đủ để ghi giao dịch. Bạn thử nói rõ: số tiền, thu hay chi, danh mục và ví nhé.', { saveToHistory: false });
+                return sendReply('Mình chưa hiểu đủ để ghi giao dịch. Bạn thử nói rõ: số tiền, thu hay chi, danh mục và ví nhé.');
             }
         }
 
         if (WRITE_INTENTS.has(intent) || looksLikeFinanceWrite) {
-            return sendReply(READ_ONLY_HINT, { saveToHistory: false });
+            return sendReply(READ_ONLY_HINT);
         }
 
         if (tables.length === 0) {
@@ -348,7 +346,7 @@ const handleChat = async (req, res) => {
         const failedTables = Object.keys(contextErrors);
         if (failedTables.length > 0) {
             console.error('[Chat] Tables that failed:', failedTables);
-            return sendReply('Mình chưa truy xuất được dữ liệu tài chính của bạn ngay lúc này. Bạn thử lại sau vài giây nhé.', { saveToHistory: false });
+            return sendReply('Mình chưa truy xuất được dữ liệu tài chính của bạn ngay lúc này. Bạn thử lại sau vài giây nhé.');
         }
 
         const firstEmpty = tables.find(t => Array.isArray(contextData[t]) && contextData[t].length === 0);

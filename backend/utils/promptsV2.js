@@ -118,16 +118,22 @@ ${DB_SCHEMA}
 QUY TẮC BẮT BUỘC:
 1. Chỉ SELECT. KHÔNG INSERT/UPDATE/DELETE/DROP.
 2. Mọi bảng tĩnh PHẢI có điều kiện user_id = '${userId}' (qua WHERE hoặc JOIN).
-3. JOIN categories: AND (c.user_id IS NULL OR c.user_id = '${userId}')
-4. SO SÁNH NGÂN SÁCH (budgets): JOIN budgets b VỚI transactions t. 'b.amount' là ngân sách, 'SUM(t.amount)' là chi tiêu. b.period lưu ngày 1 của tháng, VD filter tháng này: b.period = DATE_FORMAT(CURDATE(), '%Y-%m-01').
+3. DANH MỤC (categories): Khi lọc theo tên, PHẢI dùng lệnh JOIN chính xác như sau (KHÔNG dùng Subquery):
+   JOIN categories c ON <bảng>.category_id = c.id AND (c.user_id IS NULL OR c.user_id = '${userId}')
+   TUYỆT ĐỐI KHÔNG tự ý thêm c.user_id = '${userId}' vào mệnh đề WHERE.
+4. NGÂN SÁCH (budgets): b.period luôn là ngày 1 của tháng (VD tháng này: b.period = DATE_FORMAT(CURDATE(), '%Y-%m-01')). Nếu CHỈ HỎI ngân sách: không cần JOIN transactions. Nếu HỎI VƯỢT NGÂN SÁCH CHƯA: PHẢI dùng LEFT JOIN transactions t (để không bị rỗng nếu chưa chi tiêu gì) và tính SUM(t.amount).
 5. saving_transactions không có user_id — JOIN saving_goals để filter.
 6. ĐẠI TỪ CHỈ ĐỊNH: Nếu user nói "mục này", "tháng trước", "hôm đó"... PHẢI đọc Lịch sử hội thoại để thay bằng giá trị thật (VD: WHERE c.name = 'Ăn uống' CHỨ KHÔNG ĐƯỢC viết c.name = 'mục này').
+7. TRUY VẤN NỢ: Đọc/hỏi nợ TUYỆT ĐỐI CHỈ DÙNG bảng debts (KHÔNG dùng transactions). LEND = Cho vay (người ta nợ mình), BORROW = Đi vay (mình nợ người ta). Dùng status = 'UNPAID' hoặc amount - paid_amount > 0.
 
-MYSQL ONLY_FULL_GROUP_BY — LỖI HAY GẶP NHẤT:
-   Mọi cột non-aggregate trong SELECT (kể cả trong CASE WHEN / IF) phải nằm trong GROUP BY hoặc trong hàm aggregate.
-   ❌ SAI → ✔ SỬA:
-   CASE WHEN SUM(t.amount) > b.amount  →  CASE WHEN SUM(t.amount) > MAX(b.amount)
-   SELECT c.name, SUM(t.amount)        →  SELECT c.name, SUM(t.amount) GROUP BY c.id, c.name
+MYSQL ONLY_FULL_GROUP_BY — CÁCH XỬ LÝ CHUNG CHO TOÀN BỘ CÁC TRƯỜNG HỢP:
+Khi có dùng hàm gộp (SUM, COUNT...) trong SELECT, TẤT CẢ các cột còn lại phải tuân thủ 1 trong 2 cách sau:
+CÁCH 1: Đưa tất cả các cột đó vào MỆNH ĐỀ GROUP BY.
+  ❌ SAI: SELECT w.name, SUM(t.amount)
+  ✔ SỬA: SELECT w.name, SUM(t.amount) GROUP BY w.id, w.name
+CÁCH 2: Bọc các cột đó bằng ANY_VALUE() hoặc MAX() nếu không muốn Group By.
+  ❌ SAI: SELECT b.amount - SUM(t.amount) AS remaining
+  ✔ SỬA: SELECT ANY_VALUE(b.amount) - SUM(t.amount) AS remaining
 
 ### GENERAL — điền general_reply:
 Phản hồi thân thiện, ngắn gọn.

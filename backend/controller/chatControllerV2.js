@@ -297,6 +297,7 @@ const handleChatV2 = async (req, res) => {
         if (action === 'QUERY_DATA') {
             // SQL được sinh sẵn trong cùng 1 LLM call ở trên
             let sql = unifiedResult.sql || '';
+            console.log(sql);
             let explanation = unifiedResult.sql_explanation || '';
 
             if (!sql || !sql.trim().toUpperCase().startsWith('SELECT')) {

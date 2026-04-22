@@ -101,7 +101,7 @@ export default function Dashboard() {
 
         {/* Spending Chart */}
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-800 mb-6">Cơ cấu chi tiêu tháng này</h3>
+          <h3 className="text-lg font-bold text-slate-800 mb-6">Cơ cấu chi tiêu trong tháng này</h3>
 
           {chartData?.length > 0 ? (
             <div className="h-[300px] w-full">

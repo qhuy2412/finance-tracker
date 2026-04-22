@@ -149,7 +149,7 @@ export default function Savings() {
     setActiveGoal(goal);
     setDepositData({
       add_amount: "",
-      wallet_id: wallets.length > 0 ? wallets[0].id : "",
+      wallet_id: "",
       note: "",
     });
     setIsDepositModalOpen(true);
@@ -183,7 +183,7 @@ export default function Savings() {
     setActiveGoal(goal);
     setWithdrawData({
       withdraw_amount: "",
-      wallet_id: wallets.length > 0 ? wallets[0].id : "",
+      wallet_id: "",
       note: "",
     });
     setIsWithdrawModalOpen(true);
@@ -246,7 +246,7 @@ export default function Savings() {
     <div className="space-y-2">
       <Label className="text-slate-600 font-semibold">{label}</Label>
       <select
-        value={value}
+        value={value }
         onChange={onChange}
         required
         className="flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

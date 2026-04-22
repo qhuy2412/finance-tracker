@@ -7,23 +7,30 @@ const ALLOWED_TABLES = new Set([
 
 // ─── DB Schema (đúng thực tế) ─────────────────────────────────────────────
 const DB_SCHEMA = `
+-- 1. MÔ TẢ CÁC BẢNG (TABLE PURPOSES):
+-- wallets: Lưu danh sách ví tiền của người dùng và số dư hiện tại.
+-- categories: Lưu danh sách danh mục phân loại thu/chi (Ăn uống, Lương...).
+-- transactions: Bảng cốt lõi, lưu TẤT CẢ biến động dòng tiền thực tế ra/vào ví (Mua bán, trả nợ, nạp tiết kiệm, v.v.).
+-- transfers: Lưu lịch sử chuyển tiền nội bộ giữa 2 ví của cùng 1 người dùng.
+-- debts: Lưu các khoản nợ (Đi vay hoặc Cho vay) và trạng thái trả nợ.
+-- budgets: Lưu hạn mức ngân sách tối đa mà user đặt ra cho từng danh mục trong tháng.
+-- saving_goals: Lưu các quỹ mục tiêu tiết kiệm dài hạn (Ví dụ: Mua xe, Đám cưới) và tiến độ.
+-- saving_transactions: Lưu lịch sử những lần nạp tiền (hoặc rút ra) khỏi quỹ tiết kiệm.
+
+-- 2. CẤU TRÚC CỘT (COLUMNS):
 -- wallets: id, user_id, name, type ENUM('CASH','BANK','E_WALLET'), balance, created_at
 -- categories: id, user_id NULL (NULL=system), name, type ENUM('INCOME','EXPENSE')
 --   ⚠ JOIN: LEFT JOIN categories c ON t.category_id = c.id AND (c.user_id IS NULL OR c.user_id = ?)
--- transactions: id, user_id, wallet_id, category_id NULL, type ENUM('INCOME','EXPENSE',
---   'DEBT_IN','DEBT_OUT','TRANSFER_IN','TRANSFER_OUT','SAVING_IN','SAVING_OUT'),
---   amount, note, transaction_date DATE, created_at
---   ⚠ "tổng chi" → type='EXPENSE' ONLY. "tổng thu" → type='INCOME' ONLY.
+-- transactions: id, user_id, wallet_id, category_id NULL, type ENUM('INCOME','EXPENSE','DEBT_IN','DEBT_OUT','TRANSFER_IN','TRANSFER_OUT','SAVING_IN','SAVING_OUT'), amount, note, transaction_date DATE, created_at
+--   ⚠ CHÚ Ý: "tổng chi" → type='EXPENSE' ONLY. "tổng thu" → type='INCOME' ONLY.
 -- transfers: id, user_id, from_wallet_id, to_wallet_id, amount, transfer_date DATE, created_date
---   ⚠ KHÔNG có cột note
--- debts: id, user_id, wallet_id, person_name, type ENUM('BORROW','LEND'),
---   amount, paid_amount, status ENUM('UNPAID','PAID'), due_date, note, created_date
---   ⚠ person_name (KHÔNG phải debtor_name). Còn nợ = amount - paid_amount
+-- debts: id, user_id, wallet_id, person_name, type ENUM('BORROW','LEND'), amount, paid_amount, status ENUM('UNPAID','PAID'), due_date, note, created_date
+--   ⚠ CHÚ Ý: person_name là tên người liên quan. Còn nợ = amount - paid_amount.
 -- budgets: id, user_id, category_id, period DATE (ngày 1 tháng), amount, created_date
---   ⚠ KHÔNG có cột spent — JOIN transactions để tính
+--   ⚠ CHÚ Ý: KHÔNG có cột spent — JOIN transactions để tính.
 -- saving_goals: id, user_id, name, target_amount, current_amount, deadline, status, created_date
 -- saving_transactions: id, saving_id, wallet_id, type ENUM('DEPOSIT','WITHDRAW'), amount, note, created_at
---   ⚠ KHÔNG có user_id — JOIN saving_goals sg ON st.saving_id=sg.id WHERE sg.user_id=?
+--   ⚠ CHÚ Ý: KHÔNG có user_id — PHẢI JOIN saving_goals sg ON st.saving_id=sg.id WHERE sg.user_id=?
 `.trim();
 
 // ─── Sanitize userId trước khi nhúng vào prompt ────────────────────────────

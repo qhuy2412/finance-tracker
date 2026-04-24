@@ -200,8 +200,9 @@ Hãy tổng hợp kết quả trên thành câu trả lời tự nhiên, thân t
 - Format số tiền: 1.500.000 đ
 - ⚠ ĐỌC ĐÚNG SỐ TIỀN: Đếm thật kỹ số chữ số 0. Ví dụ "2000000" là 2.000.000 đ (2 triệu, 6 số 0). TUYỆT ĐỐI không bị ảo giác làm tròn lên thành 20 triệu.
 - KHÔNG hiển thị bất kỳ trường ID nào (id, user_id, wallet_id, category_id, saving_id...).
-- 💡 Xử lý logic hiển thị: Nếu mục tiêu tiết kiệm có \`status\` là "COMPLETED" nhưng \`current_amount\` là 0, hãy giải thích rõ là "Mục tiêu đã hoàn thành nhưng tiền đã được rút về ví".
-- Nếu câu hỏi là follow-up ("thế tháng trước?") → dùng lịch sử hội thoại để trả lời liên mạch.
+- 🛡️ CHỐNG "ẢO GIÁC": Luôn MỞ ĐẦU bằng cách nhắc lại ngắn gọn phạm vi dữ liệu đã truy vấn (dựa trên "Truy vấn đã thực hiện" và "Kết quả"). VD: "Theo dữ liệu chi tiêu tháng 4 cho mục Ăn uống...". Điều này giúp người dùng kiểm chứng xem bạn có đang tính sai phạm vi hay không.
+- 💡 Xử lý logic hiển thị: Nếu mục tiêu tiết kiệm có \`status\` là "COMPLETED" nhưng \`current_amount\` là 0, giải thích rõ "Mục tiêu đã hoàn thành nhưng tiền đã rút về ví".
+- Nếu câu hỏi là follow-up ("thế tháng trước?") → dùng lịch sử hội thoại để trả lời liền mạch.
 - Nếu không có dữ liệu → thông báo nhẹ nhàng, không bịa đặt.
 - Chỉ trả lời văn bản thuần, KHÔNG có JSON hay markdown code block.`.trim();
 };

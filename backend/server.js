@@ -19,17 +19,16 @@ const billRoute = require("./router/billRoute");
 const db = require("./config/db");
 const app = express();
 
-
-
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan("dev"));
 app.use(cookieParser());
 
 app.use(cors({
-  origin: true, 
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 }));
+
 app.use("/api/auth", authRoute);
 app.use("/api/wallets", walletRoute);
 app.use("/api/categories", categoryRoute);
@@ -42,6 +41,15 @@ app.use("/api/dashboard", dashboardRoute);
 app.use("/api/chat", chatRoute);
 app.use("/api/bills", billRoute);
 
+// ── Global error handler ────────────────────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+    console.error('[GlobalError]', err.message || err);
+    const status = err.status || err.statusCode || 500;
+    res.status(status).json({
+        message: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err.message || 'Internal server error'),
+    });
+});
 
 const PORT = process.env.PORT || 9999;
 app.listen(PORT, () => {
@@ -49,4 +57,3 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
-

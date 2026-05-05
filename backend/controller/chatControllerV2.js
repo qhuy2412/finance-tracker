@@ -297,7 +297,6 @@ const handleChatV2 = async (req, res) => {
         if (action === 'QUERY_DATA') {
             // SQL được sinh sẵn trong cùng 1 LLM call ở trên
             let sql = unifiedResult.sql || '';
-            console.log(sql);
             let explanation = unifiedResult.sql_explanation || '';
 
             if (!sql || !sql.trim().toUpperCase().startsWith('SELECT')) {
@@ -351,7 +350,6 @@ const handleChatV2 = async (req, res) => {
             try {
                 const [result] = await db.execute(sql);
                 rows = result;
-                console.log(rows);
             } catch (e) {
                 console.error('[SqlExec] Error:', e.message, '| SQL:', sql);
                 return sendReply('Mình bị lỗi khi truy vấn dữ liệu. Bạn thử hỏi lại nhé.');

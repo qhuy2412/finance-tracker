@@ -38,11 +38,13 @@ const transactionFinance = {
         }
 
         const connection = await db.getConnection();
-        const resolvedWalletId = await resolveWalletId(userId, { wallet_id, wallet_name });
-        const resolvedCategoryId = await resolveCategoryId(userId, { category_id, category_name });
-
         try {
             await connection.beginTransaction();
+
+            // H3: Resolve wallet/category BÊN TRONG transaction để tránh race condition
+            // (nếu wallet bị xóa giữa 2 lần query sẽ được phát hiện trong cùng 1 transaction scope)
+            const resolvedWalletId = await resolveWalletId(userId, { wallet_id, wallet_name });
+            const resolvedCategoryId = await resolveCategoryId(userId, { category_id, category_name });
 
             const wallet = await Wallet.findById(resolvedWalletId, connection);
             if (!wallet) throw createHttpError(404, 'Wallet not found!');

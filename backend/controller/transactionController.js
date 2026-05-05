@@ -8,6 +8,14 @@ const Saving = require('../model/savingModel');
 const getAllTransactionsByWalletId = async (req, res) => {
     try {
         const walletId = req.params.walletId;
+        const userId = req.user.id;
+
+        // Verify ownership — tránh IDOR (user A xem giao dịch của wallet user B)
+        const wallet = await Wallet.findById(walletId);
+        if (!wallet || wallet.user_id !== userId) {
+            return res.status(403).json({ message: 'Bạn không có quyền xem giao dịch của ví này!' });
+        }
+
         const transactions = await Transaction.getAllTransactionsByWalletId(walletId);
         return res.status(200).json(transactions);
     } catch (error) {

@@ -26,7 +26,6 @@ const payDebt = async (req, res) => {
     const debtId = req.params.debtId;
     const userId = req.user.id;
     const { wallet_id, pay_amount, transaction_date, note } = req.body;
-    console.log(req.body);
     // Validation input
     if (!wallet_id || !pay_amount || !transaction_date) {
         return res.status(400).json({ message: "wallet_id, pay amount , transaction_date is required!" });

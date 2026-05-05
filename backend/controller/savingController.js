@@ -1,4 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
+const db = require('../config/db'); // H4: require ở top-level, không đẻ trong hàm
 const Saving = require('../model/savingModel');
 const Wallet = require('../model/walletModel');
 const financeService = require('../services/financeService');
@@ -34,7 +35,7 @@ const deleteSaving = async (req, res) => {
     }
 };
 
-// Nạp tiền: ghi saving_transaction DEPOSIT, cập nhật current_amount
+// Nạp tiền: ghi saving_transaction DEPOSIT, cập nhật current_amount (atomic)
 const depositSaving = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
@@ -70,16 +71,34 @@ const depositSaving = async (req, res) => {
         const newAmount = Number(goal.current_amount) + Number(add_amount);
         const status = newAmount >= Number(goal.target_amount) ? 'COMPLETED' : 'IN_PROGRESS';
 
-        await Saving.createSavingTransaction(uuidv4(), id, wallet_id, 'DEPOSIT', Number(add_amount), note || null);
-        await Saving.updateCurrentAmount(id, newAmount, status);
+        // H2: Atomic — cả 2 DB call trong 1 transaction
+        const connection = await db.getConnection();
+        try {
+            await connection.beginTransaction();
+            await connection.execute(
+                `INSERT INTO saving_transactions (id, saving_id, wallet_id, type, amount, note) VALUES (?, ?, ?, 'DEPOSIT', ?, ?)`,
+                [uuidv4(), id, wallet_id, Number(add_amount), note || null]
+            );
+            await connection.execute(
+                `UPDATE saving_goals SET current_amount = ?, status = ? WHERE id = ?`,
+                [newAmount, status, id]
+            );
+            await connection.commit();
+        } catch (e) {
+            await connection.rollback();
+            throw e;
+        } finally {
+            connection.release();
+        }
 
         res.status(200).json({ message: "Nạp tiền thành công!", current_amount: newAmount, status });
     } catch (error) {
+        console.error('[depositSaving]', error.message);
         res.status(500).json({ error: error.message });
     }
 };
 
-// Rút tiền: ghi saving_transaction WITHDRAW, cập nhật current_amount
+// Rút tiền: ghi saving_transaction WITHDRAW, cập nhật current_amount (atomic)
 const withdrawSaving = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
@@ -102,11 +121,29 @@ const withdrawSaving = async (req, res) => {
         const newAmount = Number(goal.current_amount) - Number(withdraw_amount);
         const status = newAmount >= Number(goal.target_amount) ? 'COMPLETED' : 'IN_PROGRESS';
 
-        await Saving.createSavingTransaction(uuidv4(), id, wallet_id, 'WITHDRAW', Number(withdraw_amount), note || null);
-        await Saving.updateCurrentAmount(id, newAmount, status);
+        // H2: Atomic — cả 2 DB call trong 1 transaction
+        const connection = await db.getConnection();
+        try {
+            await connection.beginTransaction();
+            await connection.execute(
+                `INSERT INTO saving_transactions (id, saving_id, wallet_id, type, amount, note) VALUES (?, ?, ?, 'WITHDRAW', ?, ?)`,
+                [uuidv4(), id, wallet_id, Number(withdraw_amount), note || null]
+            );
+            await connection.execute(
+                `UPDATE saving_goals SET current_amount = ?, status = ? WHERE id = ?`,
+                [newAmount, status, id]
+            );
+            await connection.commit();
+        } catch (e) {
+            await connection.rollback();
+            throw e;
+        } finally {
+            connection.release();
+        }
 
         res.status(200).json({ message: "Rút tiền thành công!", current_amount: newAmount, status });
     } catch (error) {
+        console.error('[withdrawSaving]', error.message);
         res.status(500).json({ error: error.message });
     }
 };
@@ -115,7 +152,6 @@ const withdrawSaving = async (req, res) => {
 const disburseSaving = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
-    const db = require('../config/db');
 
     try {
         const goal = await Saving.getSavingById(id, userId);

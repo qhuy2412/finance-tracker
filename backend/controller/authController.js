@@ -172,29 +172,41 @@ const refreshToken = async (req, res) => {
             return res.status(401).json({ message: "User not found!" });
         }
 
+        // Sinh access token mới
         const access_token = jwt.sign({ id: user.id }, process.env.JWT_SECRET_KEY, { expiresIn: '15m' });
-        
-        res.cookie('access_token', access_token, {
+
+        // ―― Refresh Token Rotation ――
+        // Xóa token cũ, tạo token mới — giúp phát hiện nếu token bị đánh cắp (reuse detection)
+        const new_refresh_token = jwt.sign({ id: user.id }, process.env.JWT_TOKEN_SECRET, { expiresIn: '30d' });
+        const newExpireAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+        await db.query('DELETE FROM refresh_tokens WHERE token = ?', [refresh_token]);
+        await db.query(
+            'INSERT INTO refresh_tokens (user_id, token, expired_at) VALUES (?, ?, ?)',
+            [user.id, new_refresh_token, newExpireAt]
+        );
+
+        const cookieOptions = {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
-            maxAge: 15 * 60 * 1000
-        });
+        };
+        res.cookie('access_token', access_token, { ...cookieOptions, maxAge: 15 * 60 * 1000 });
+        res.cookie('refresh_token', new_refresh_token, { ...cookieOptions, maxAge: 30 * 24 * 60 * 60 * 1000 });
 
         return res.status(200).json({ 
             message: "Token refreshed successfully!",
             success: true 
         });
     } catch (error) {
-        console.log('Refresh token error:', error);
-        return res.status(500).json({ message: error.message });
+        console.error('Refresh token error:', error);
+        return res.status(500).json({ message: 'Internal server error' });
     }
 };
 
 const getMe = async (req, res) => {
     try {
         const userId = req.user.id;
-        console.log("User ID from token:", userId);
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: "User not found!" });

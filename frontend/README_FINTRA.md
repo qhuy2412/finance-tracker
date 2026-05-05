@@ -1,183 +1,133 @@
-# FinTra Frontend
+# FinTra — Frontend
 
-A modern React-based financial management dashboard built with Vite, Tailwind CSS, and Recharts. Provides a user-friendly interface for managing finances, budgets, transactions, and more.
+React 19 frontend for the FinTra personal finance management app. Built with Vite + Tailwind CSS v4.
 
-## 🚀 Features
+## Tech Stack
 
-- **Authentication**: User registration, login with email verification
-- **Dashboard**: Overview of financial statistics and trends
-- **Wallet Management**: Add, update, and manage wallets
-- **Transaction Tracking**: Record and categorize transactions
-- **Budget Management**: Create and monitor budgets
-- **Debt Tracking**: Track debts and repayments
-- **Savings Goals**: Set and monitor savings targets
-- **Bill Management**: Track upcoming bills and payments
-- **Money Transfers**: Send money between accounts
-- **Chat Widget**: AI-powered financial assistant
-- **Real-time Notifications**: Toast notifications for user actions
+- **Framework**: React 19 + Vite 8
+- **Styling**: Tailwind CSS v4 + shadcn/ui (Base UI)
+- **State**: Zustand (`src/store/`)
+- **HTTP**: Axios via `src/services/api.js`
+- **Charts**: Recharts
+- **Routing**: react-router-dom v7
+- **Notifications**: react-toastify
 
-## 📋 Prerequisites
+## Installation
 
-- Node.js 16+ and npm
-- Active backend API server
-
-## 🔧 Installation
-
-1. **Install dependencies**
-   ```bash
-   cd frontend
-   npm install
-   ```
-
-2. **Configure environment**
-   Create a `.env` file (if needed):
-   ```
-   VITE_API_URL=http://localhost:5000
-   ```
-
-## 🎯 Available Scripts
-
-### Development Server
 ```bash
-npm run dev
+cd frontend
+npm install
 ```
-Starts Vite development server with hot module replacement (HMR) at `http://localhost:5173`
 
-### Production Build
+Create `.env`:
+```env
+VITE_API_URL=http://localhost:9999
+```
+
+## Scripts
+
 ```bash
-npm run build
-```
-Creates optimized production build in the `dist/` directory
-
-### Preview Build
-```bash
-npm run preview
-```
-Preview the production build locally
-
-### Linting
-```bash
-npm run lint
-```
-Run ESLint to check code quality
-
-## 📁 Project Structure
-
-```
-frontend/
-├── src/
-│   ├── components/          # Reusable UI components
-│   │   ├── common/          # Common layout components (Header, Layout, Chat)
-│   │   ├── ui/              # Base UI components (Button, Input, Card, Label)
-│   │   └── ConfirmModal.jsx # Confirmation modal
-│   ├── pages/               # Page components by feature
-│   │   ├── auth/            # Login/Register/OTP verification
-│   │   ├── budget/          # Budget management
-│   │   ├── dashboard/       # Dashboard overview
-│   │   ├── debt/            # Debt tracking
-│   │   ├── saving/          # Savings goals
-│   │   ├── transaction/     # Transaction management
-│   │   ├── transfer/        # Money transfers
-│   │   └── wallet/          # Wallet management
-│   ├── services/            # API integration services
-│   │   ├── api.js           # Axios instance configuration
-│   │   ├── authApi.js       # Authentication endpoints
-│   │   ├── *.service.js     # Feature-specific API calls
-│   ├── store/               # State management
-│   │   └── AuthContext.jsx  # Authentication context
-│   ├── utils/               # Utility functions
-│   ├── lib/                 # Library helpers
-│   ├── assets/              # Static assets
-│   ├── App.jsx              # Root component
-│   ├── App.css              # App styles
-│   ├── main.jsx             # Entry point
-│   └── index.css            # Global styles
-├── public/                  # Static public files
-├── package.json
-├── vite.config.js
-├── eslint.config.js
-├── postcss.config.js
-└── README.md
+npm run dev      # Dev server — http://localhost:5173
+npm run build    # Production build → dist/
+npm run preview  # Preview production build
+npm run lint     # ESLint check
 ```
 
-## 🔌 API Integration
+## Project Structure
 
-The frontend communicates with the backend API through service files:
+```
+frontend/src/
+├── components/
+│   ├── common/          # Layout, Header, Sidebar, ChatWidget
+│   └── ui/              # Button, Input, Card, Label, Modal (shadcn/ui)
+├── pages/
+│   ├── auth/            # Login, Register, OTP verification
+│   ├── dashboard/       # Financial overview + charts
+│   ├── wallet/          # Wallet management
+│   ├── transaction/     # Income/expense transactions
+│   ├── transfer/        # Wallet-to-wallet transfers
+│   ├── budget/          # Budget planning
+│   ├── saving/          # Savings goals
+│   └── debt/            # Debt tracking
+├── services/
+│   ├── api.js           # Axios instance (baseURL, cookie, interceptors)
+│   ├── authApi.js       # Auth endpoints
+│   ├── wallet.service.js
+│   ├── transaction.service.js
+│   ├── transfer.service.js
+│   ├── budget.service.js
+│   ├── saving.service.js
+│   ├── debt.service.js
+│   ├── category.service.js
+│   ├── dashboard.service.js
+│   └── chat.service.js
+├── store/               # Zustand stores
+├── utils/               # Helpers, formatters
+├── lib/                 # cn() utility (clsx + tailwind-merge)
+├── App.jsx              # Router setup
+└── main.jsx             # Entry point
+```
 
-- **Authentication**: `authApi.js` - login, register, email verification
-- **Dashboard**: `dashboard.service.js` - financial summaries
-- **Wallets**: `wallet.service.js` - wallet CRUD operations
-- **Transactions**: `transaction.service.js` - transaction management
-- **Budgets**: `budget.service.js` - budget planning
-- **Categories**: `category.service.js` - transaction categories
-- **Debts**: `debt.service.js` - debt tracking
-- **Savings**: `saving.service.js` - savings goals
-- **Transfers**: `transfer.service.js` - money transfers
-- **Chat**: `chat.service.js` - AI assistant interaction
+## Pages
 
-## 🎨 UI Components
+| Route | Page | Description |
+|---|---|---|
+| `/login` | Login | Sign in |
+| `/register` | Register | Sign up + OTP verification |
+| `/dashboard` | Dashboard | Financial overview, charts |
+| `/wallets` | Wallets | Manage wallets, view balances |
+| `/transactions` | Transactions | Income/expense history, filters |
+| `/transfers` | Transfers | Transfer between wallets |
+| `/budgets` | Budgets | Budget tracking per category |
+| `/savings` | Savings | Savings goals management |
+| `/debts` | Debts | Track money lent and borrowed |
 
-Built with shadcn/ui and Tailwind CSS:
+## Development Rules
 
-- **Button**: Versatile button component with variants
-- **Input**: Text input with validation support
-- **Card**: Content container with header/body/footer
-- **Label**: Form label with accessibility support
-- **ConfirmModal**: Confirmation dialog for critical actions
+### API Calls
+- **Never** call `axios` directly in components — always use `services/*.service.js`
+- Base URL comes from `import.meta.env.VITE_API_URL`
+- Wrap in `try/catch`, display errors via `toast.error()`
 
-## 🔐 Authentication Flow
+```jsx
+// ✅ Correct pattern
+const handleSubmit = async () => {
+  try {
+    setLoading(true);
+    await walletService.create(data);
+    toast.success('Wallet created');
+    refetch();
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Something went wrong');
+  } finally {
+    setLoading(false);
+  }
+};
+```
 
-1. User registers with username, email, and password
-2. OTP sent to email for verification
-3. User verifies email with OTP code
-4. User logs in with email and password
-5. JWT token stored in cookies for session management
+### State Management
 
-## 📊 Key Pages
+| State type | Use |
+|---|---|
+| Cross-page / shared data | Zustand store |
+| Local component UI state | `useState` |
+| Derived from props | Compute inline — no state needed |
 
-| Page | Route | Purpose |
-|------|-------|---------|
-| Auth | `/auth` | Login, Register, Email Verification |
-| Dashboard | `/dashboard` | Financial overview & statistics |
-| Wallet | `/wallet` | Manage user wallets |
-| Transactions | `/transactions` | View and manage transactions |
-| Budget | `/budget` | Create and track budgets |
-| Debt | `/debt` | Track debts and payments |
-| Savings | `/saving` | Manage savings goals |
-| Transfers | `/transfer` | Send money between accounts |
+### Styling
+- Use Tailwind utility classes
+- Conditional classes: use `cn()` from `src/lib/`
+- No inline `style={{}}` unless for dynamic values Tailwind can't handle
 
-## 🛠 Technologies
+### Required UX Patterns
+- **Loading states**: show spinner or skeleton while fetching
+- **Empty states**: meaningful message when a list is empty
+- **Destructive actions**: confirmation modal before delete
+- **Forms**: disable submit button while loading to prevent double submit
 
-- **React 19**: UI framework
-- **Vite**: Fast build tool and dev server
-- **Tailwind CSS**: Utility-first CSS framework
-- **Recharts**: React charting library
-- **React Router**: Client-side routing
-- **Axios**: HTTP client
-- **React Toastify**: Toast notifications
-- **React Base UI**: Accessible components
+## Auth Flow
 
-## 🔄 Error Handling
-
-- Field-level error display on forms (registration)
-- Toast notifications for general errors and success messages
-- Validation before API calls
-- Graceful error responses from API
-
-## 🚀 Deployment
-
-1. Build the project:
-   ```bash
-   npm run build
-   ```
-
-2. Deploy the `dist/` folder to your hosting service (Vercel, Netlify, AWS, etc.)
-
-3. Configure environment variables in your hosting platform
-
-## 📝 Notes
-
-- The app requires a running backend server for full functionality
-- Authentication tokens are stored in cookies
-- All API requests include proper error handling
-- Form validation includes both client-side and server-side checks
+1. User registers → receives OTP via email
+2. Verify OTP → account activated
+3. Login → JWT stored in **httpOnly cookie** (not readable from JS)
+4. All requests automatically send cookie (`withCredentials: true` in `api.js`)
+5. No need to manually set `Authorization` header

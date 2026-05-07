@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Plus, Loader2, X, ArrowRightLeft, Calendar, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { getWallets } from "../../services/wallet.service";
 import { getTransfers, createTransfer } from "../../services/transfer.service";
@@ -260,14 +261,12 @@ export default function Transfers() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="amount">Số tiền (₫)</Label>
-                <Input 
-                  id="amount" 
-                  type="number"
-                  min="1"
+                <Label htmlFor="amount">Số tiền</Label>
+                <CurrencyInput
+                  id="amount"
                   value={formData.amount}
                   onChange={(e) => setFormData({...formData, amount: e.target.value})}
-                  required 
+                  required
                 />
               </div>
 

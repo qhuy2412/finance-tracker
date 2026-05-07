@@ -3,6 +3,7 @@ import { Plus, Loader2, X, ChevronLeft, ChevronRight, TrendingDown, Target, Pigg
 import * as LucideIcons from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { getBudgetStatus, setBudget } from "../../services/budget.service";
 import { getCategories } from "../../services/category.service";
@@ -300,12 +301,10 @@ export default function Budgets() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="amount">Số tiền ngân sách (₫)</Label>
-                <Input
+                <Label htmlFor="amount">Số tiền ngân sách</Label>
+                <CurrencyInput
                   id="amount"
-                  type="number"
-                  min="0"
-                  placeholder="Ví dụ: 5000000"
+                  placeholder="5.000.000"
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                   required

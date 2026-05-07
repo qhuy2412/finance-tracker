@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Plus, Wallet as WalletIcon, CreditCard, Banknote, Edit2, Loader2, X, ShieldCheck, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { getWallets, createWallet, updateWallet } from "../../services/wallet.service";
 import { getReservedAmounts } from "../../services/saving.service";
@@ -206,8 +207,8 @@ export default function Wallets() {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="balance">{editingWallet ? "Số dư hiện tại (₫)" : "Số dư ban đầu (₫)"}</Label>
-                <Input id="balance" type="number" min="0" value={formData.balance}
+                <Label htmlFor="balance">{editingWallet ? "Số dư hiện tại" : "Số dư ban đầu"}</Label>
+                <CurrencyInput id="balance" value={formData.balance}
                   onChange={(e) => setFormData({ ...formData, balance: e.target.value })} required />
               </div>
 

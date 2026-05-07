@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import {
   getSavings, createSaving, depositToSaving, withdrawFromSaving,
@@ -463,15 +464,15 @@ export default function Savings() {
                   className="h-11 rounded-xl bg-slate-50/50" required />
               </div>
               <div className="space-y-2">
-                <Label className="text-slate-600 font-semibold">Số tiền mục tiêu (₫)</Label>
-                <Input type="number" min="0" placeholder="50,000,000" value={formData.target_amount}
+                <Label className="text-slate-600 font-semibold">Số tiền mục tiêu</Label>
+                <CurrencyInput placeholder="50.000.000" value={formData.target_amount}
                   onChange={(e) => setFormData({ ...formData, target_amount: e.target.value })}
                   className="h-11 rounded-xl bg-slate-50/50 font-medium" required />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-slate-600 font-semibold">Đã có (₫)</Label>
-                  <Input type="number" min="0" placeholder="0" value={formData.current_amount}
+                  <Label className="text-slate-600 font-semibold">Đã có</Label>
+                  <CurrencyInput placeholder="0" value={formData.current_amount}
                     onChange={(e) => setFormData({ ...formData, current_amount: e.target.value })}
                     className="h-11 rounded-xl bg-slate-50/50" />
                   <p className="text-[10px] text-slate-400">Có thể để trống</p>
@@ -536,15 +537,9 @@ export default function Savings() {
                 );
               })()}
               <div className="space-y-2">
-                <Label className="text-slate-600 font-semibold text-center block">Số tiền muốn nạp (₫)</Label>
-                <Input type="number" min="1"
-                  max={(() => {
-                    const w = wallets.find(w => w.id === depositData.wallet_id);
-                    if (!w) return undefined;
-                    const res = Number(reserved[w.id] || 0);
-                    return Math.max(0, Number(w.balance) - res);
-                  })()}
-                  autoFocus placeholder="VD: 5,000,000"
+                <Label className="text-slate-600 font-semibold text-center block">Số tiền muốn nạp</Label>
+                <CurrencyInput
+                  autoFocus placeholder="5.000.000"
                   value={depositData.add_amount}
                   onChange={(e) => setDepositData({ ...depositData, add_amount: e.target.value })}
                   className="h-14 rounded-2xl bg-white text-center font-bold text-2xl tracking-tight border-2 focus-visible:ring-0 focus-visible:border-blue-500"
@@ -583,10 +578,10 @@ export default function Savings() {
             <form onSubmit={handleWithdrawSubmit} className="p-6 space-y-4">
               <div className="space-y-2">
                 <Label className="text-slate-600 font-semibold text-center block">
-                  Số tiền muốn rút (₫) — Tối đa {fmtAmt(activeGoal.current_amount)}
+                  Số tiền muốn rút — Tối đa {fmtAmt(activeGoal.current_amount)}
                 </Label>
-                <Input type="number" min="1" max={activeGoal.current_amount} autoFocus
-                  placeholder="VD: 1,000,000"
+                <CurrencyInput autoFocus
+                  placeholder="1.000.000"
                   value={withdrawData.withdraw_amount}
                   onChange={(e) => setWithdrawData({ ...withdrawData, withdraw_amount: e.target.value })}
                   className="h-14 rounded-2xl bg-white text-center font-bold text-2xl tracking-tight border-2 focus-visible:ring-0 focus-visible:border-orange-400"

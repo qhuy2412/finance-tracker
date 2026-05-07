@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Plus, ArrowDownCircle, ArrowUpCircle, Trash2, Edit, Loader2, X, Search, FilterX, Activity, ArrowDownRight, ArrowUpRight, Camera, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { getWallets } from "../../services/wallet.service";
 import { getTransactions, createTransaction, deleteTransaction, updateTransaction } from "../../services/transaction.service";
@@ -196,7 +197,6 @@ export default function Transactions() {
 
     try {
       setIsSubmitting(true);
-      console.log("Submitting transaction with data:", { ...formData, walletId: modalWalletId });
       const payload = {
         categoryId: formData.categoryId,
         type: formData.type,
@@ -600,11 +600,9 @@ export default function Transactions() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="amount">Số tiền (₫)</Label>
-                <Input
+                <Label htmlFor="amount">Số tiền</Label>
+                <CurrencyInput
                   id="amount"
-                  type="number"
-                  min="0"
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                   required

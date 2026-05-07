@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Plus, HandCoins, Trash2, Loader2, X, ArrowUpRight, ArrowDownRight, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { getDebts, createDebt, deleteDebt, payDebt } from "../../services/debt.service";
 import { getWallets } from "../../services/wallet.service";
@@ -314,8 +315,8 @@ export default function Debts() {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="pay_amount">Số tiền thanh toán (₫)</Label>
-                <Input id="pay_amount" type="number" min="1" value={payFormData.pay_amount} onChange={(e) => setPayFormData({ ...payFormData, pay_amount: e.target.value })} required />
+                <Label htmlFor="pay_amount">Số tiền thanh toán</Label>
+                <CurrencyInput id="pay_amount" value={payFormData.pay_amount} onChange={(e) => setPayFormData({ ...payFormData, pay_amount: e.target.value })} required />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="pay_transaction_date">Ngày thanh toán</Label>
@@ -398,11 +399,9 @@ export default function Debts() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="amount">Số tiền (₫)</Label>
-                <Input
+                <Label htmlFor="amount">Số tiền</Label>
+                <CurrencyInput
                   id="amount"
-                  type="number"
-                  min="0"
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                   required

@@ -123,8 +123,12 @@ export default function Savings() {
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.target_amount) {
-      toast.error("Vui lòng điền đủ tên và số tiền mục tiêu!");
+    if (!formData.name) {
+      toast.error("Vui lòng nhập tên mục tiêu!");
+      return;
+    }
+    if (!formData.target_amount || Number(formData.target_amount) <= 0) {
+      toast.error("Vui lòng nhập số tiền mục tiêu hợp lệ!");
       return;
     }
     try {
@@ -158,8 +162,12 @@ export default function Savings() {
 
   const handleDepositSubmit = async (e) => {
     e.preventDefault();
-    if (!depositData.add_amount || !depositData.wallet_id) {
-      toast.error("Vui lòng nhập số tiền và chọn ví!");
+    if (!depositData.add_amount || Number(depositData.add_amount) <= 0) {
+      toast.error("Vui lòng nhập số tiền nạp hợp lệ!");
+      return;
+    }
+    if (!depositData.wallet_id) {
+      toast.error("Vui lòng chọn ví!");
       return;
     }
     try {
@@ -192,8 +200,12 @@ export default function Savings() {
 
   const handleWithdrawSubmit = async (e) => {
     e.preventDefault();
-    if (!withdrawData.withdraw_amount || !withdrawData.wallet_id) {
-      toast.error("Vui lòng nhập số tiền và chọn ví!");
+    if (!withdrawData.withdraw_amount || Number(withdrawData.withdraw_amount) <= 0) {
+      toast.error("Vui lòng nhập số tiền rút hợp lệ!");
+      return;
+    }
+    if (!withdrawData.wallet_id) {
+      toast.error("Vui lòng chọn ví!");
       return;
     }
     try {
@@ -456,7 +468,7 @@ export default function Savings() {
                 <X size={18} />
               </button>
             </div>
-            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4" noValidate>
               <div className="space-y-2">
                 <Label className="text-slate-600 font-semibold">Tên mục tiêu / Kế hoạch</Label>
                 <Input autoFocus placeholder="VD: Mua xe máy, Đi du lịch Nhật..." value={formData.name}
@@ -511,7 +523,7 @@ export default function Savings() {
                 Còn cần: <span className="font-bold text-blue-600">{fmtAmt(Number(activeGoal.target_amount) - Number(activeGoal.current_amount))}</span>
               </p>
             </div>
-            <form onSubmit={handleDepositSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleDepositSubmit} className="p-6 space-y-4" noValidate>
               {/* Chọn ví trước để tính available */}
               <WalletSelect
                 label="Nạp từ ví"
@@ -575,7 +587,7 @@ export default function Savings() {
               <p className="text-sm font-medium text-slate-500 text-center mt-1">{activeGoal.name}</p>
               <p className="text-xs text-orange-500 font-medium mt-0.5">⚠️ Rút tiền sẽ làm chậm tiến độ mục tiêu</p>
             </div>
-            <form onSubmit={handleWithdrawSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleWithdrawSubmit} className="p-6 space-y-4" noValidate>
               <div className="space-y-2">
                 <Label className="text-slate-600 font-semibold text-center block">
                   Số tiền muốn rút — Tối đa {fmtAmt(activeGoal.current_amount)}

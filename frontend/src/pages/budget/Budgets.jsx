@@ -81,8 +81,12 @@ export default function Budgets() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.category_id || !formData.amount) {
-      toast.error("Vui lòng điền đủ thông tin!");
+    if (!formData.category_id) {
+      toast.error("Vui lòng chọn danh mục!");
+      return;
+    }
+    if (!formData.amount || Number(formData.amount) <= 0) {
+      toast.error("Vui lòng nhập số tiền hợp lệ!");
       return;
     }
 
@@ -280,7 +284,7 @@ export default function Budgets() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleSubmit} className="p-5 space-y-4" noValidate>
               <div className="space-y-1.5">
                 <Label htmlFor="category_id">Danh mục</Label>
                 <select

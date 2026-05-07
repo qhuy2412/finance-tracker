@@ -118,6 +118,14 @@ export default function Debts() {
       toast.error("Vui lòng chọn ví!");
       return;
     }
+    if (!formData.person_name) {
+      toast.error("Vui lòng nhập tên người giao dịch!");
+      return;
+    }
+    if (!formData.amount || Number(formData.amount) <= 0) {
+      toast.error("Vui lòng nhập số tiền hợp lệ!");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -164,6 +172,10 @@ export default function Debts() {
     e.preventDefault();
     if (!payFormData.wallet_id) {
       toast.error("Vui lòng chọn ví!");
+      return;
+    }
+    if (!payFormData.pay_amount || Number(payFormData.pay_amount) <= 0) {
+      toast.error("Vui lòng nhập số tiền thanh toán hợp lệ!");
       return;
     }
     try {
@@ -306,7 +318,7 @@ export default function Debts() {
                 <X size={18} />
               </button>
             </div>
-            <form onSubmit={handlePaySubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handlePaySubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto" noValidate>
               <div className="space-y-1.5">
                 <Label htmlFor="pay_wallet_id">Ví thanh toán / nhận tiền</Label>
                 <select id="pay_wallet_id" className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={payFormData.wallet_id} onChange={(e) => setPayFormData({ ...payFormData, wallet_id: e.target.value })} required>
@@ -350,7 +362,7 @@ export default function Debts() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto" noValidate>
 
               <div className="space-y-1.5">
                 <Label>Loại nợ</Label>

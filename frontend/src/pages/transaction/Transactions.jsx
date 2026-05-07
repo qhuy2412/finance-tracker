@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Plus, ArrowDownCircle, ArrowUpCircle, Trash2, Edit, Loader2, X, Search, FilterX, Activity, ArrowDownRight, ArrowUpRight, Camera, AlertTriangle } from "lucide-react";
+import { Plus, ArrowDownCircle, ArrowUpCircle, Trash2, Edit, Loader2, X, Search, FilterX, Activity, ArrowDownRight, ArrowUpRight, Camera, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -45,6 +45,10 @@ export default function Transactions() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanPreviewUrl, setScanPreviewUrl] = useState(null);
   const billInputRef = useRef(null);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 20;
 
   // Form State
   const [formData, setFormData] = useState({
@@ -194,6 +198,14 @@ export default function Transactions() {
       toast.error("Vui lòng chọn danh mục!");
       return;
     }
+    if (!formData.amount || Number(formData.amount) <= 0) {
+      toast.error("Vui lòng nhập số tiền hợp lệ!");
+      return;
+    }
+    if (!formData.transaction_date) {
+      toast.error("Vui lòng chọn ngày giao dịch!");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -228,7 +240,13 @@ export default function Transactions() {
     setFilterCategory("all");
     setFilterDate("");
     setSearchQuery("");
+    setCurrentPage(1);
   };
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterWallet, filterCategory, filterDate, searchQuery]);
 
   // Filtered Computed List
   const filteredTransactions = useMemo(() => {
@@ -266,6 +284,13 @@ export default function Transactions() {
   // Calculate totals using ONLY the filtered items
   const totalIncome = filteredTransactions.filter(t => t.type === 'INCOME').reduce((acc, curr) => acc + Number(curr.amount), 0);
   const totalExpense = filteredTransactions.filter(t => t.type === 'EXPENSE').reduce((acc, curr) => acc + Number(curr.amount), 0);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE);
+  const paginatedTransactions = filteredTransactions.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -359,7 +384,7 @@ export default function Transactions() {
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {filteredTransactions.map((t) => {
+            {paginatedTransactions.map((t) => {
               const type = t.type || '';
               const isExpense = type === 'EXPENSE';
               const isIncome = type === 'INCOME';
@@ -450,6 +475,68 @@ export default function Transactions() {
             })}
           </div>
         )}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50/50">
+            <span className="text-xs text-slate-500">
+              Hiển thị {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredTransactions.length)} trên tổng {filteredTransactions.length}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-lg"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft size={14} />
+              </Button>
+              
+              {/* Simple page numbers */}
+              {Array.from({ length: totalPages }).map((_, idx) => {
+                const page = idx + 1;
+                // Only show a few pages around current page, first and last
+                if (
+                  page === 1 || 
+                  page === totalPages || 
+                  (page >= currentPage - 1 && page <= currentPage + 1)
+                ) {
+                  return (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "ghost"}
+                      className={`h-8 w-8 rounded-lg text-xs ${currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}`}
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </Button>
+                  );
+                }
+                
+                // Show ellipsis
+                if (
+                  (page === 2 && currentPage > 3) || 
+                  (page === totalPages - 1 && currentPage < totalPages - 2)
+                ) {
+                  return <span key={page} className="px-1 text-slate-400">...</span>;
+                }
+                
+                return null;
+              })}
+
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-lg"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight size={14} />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal Form */}
@@ -518,7 +605,7 @@ export default function Transactions() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleSubmit} className="p-5 space-y-4" noValidate>
 
               <div className="space-y-1.5">
                 <Label htmlFor="modalWalletId">Từ ví</Label>

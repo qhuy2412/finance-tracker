@@ -55,6 +55,14 @@ export default function Wallets() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.name) {
+      toast.error("Vui lòng nhập tên ví!");
+      return;
+    }
+    if (!formData.balance || Number(formData.balance) < 0) {
+      toast.error("Vui lòng nhập số dư hợp lệ!");
+      return;
+    }
     try {
       setIsSubmitting(true);
       const payload = { name: formData.name, type: formData.type, balance: Number(formData.balance) };
@@ -184,7 +192,7 @@ export default function Wallets() {
               <h3 className="font-semibold text-slate-800">{editingWallet ? "Chỉnh sửa ví" : "Thêm ví mới"}</h3>
               <button onClick={closeModal} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
             </div>
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleSubmit} className="p-5 space-y-4" noValidate>
               <div className="space-y-1.5">
                 <Label htmlFor="name">Tên ví</Label>
                 <Input id="name" autoFocus placeholder="VD: Ví chính..." value={formData.name}

@@ -81,8 +81,8 @@ export default function Transfers() {
       toast.error("Hai ví không được trùng nhau!");
       return;
     }
-    if (Number(formData.amount) <= 0) {
-      toast.error("Số tiền phải lớn hơn 0!");
+    if (!formData.amount || Number(formData.amount) <= 0) {
+      toast.error("Vui lòng nhập số tiền hợp lệ!");
       return;
     }
 
@@ -229,7 +229,7 @@ export default function Transfers() {
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleSubmit} className="p-5 space-y-4" noValidate>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="from_wallet_id">Từ ví</Label>

@@ -14,7 +14,7 @@ description: Read git diff and auto-generate a conventional commit message, then
 
 
 6. Generate a commit message following this format:
-    - description under 72 chars Types: feat | fix | refactor | chore | docs | test | perf | style
+    - description under 36 chars Types: feat | fix | refactor | chore | docs | test | perf | style
     - Examples:
       feat(auth): add JWT refresh token endpoint
       fix(cart): prevent duplicate item on rapid double-click
@@ -26,3 +26,4 @@ description: Read git diff and auto-generate a conventional commit message, then
 9. Run git add -A // turbo
 10. Run git commit -m "[generated message]"
 11. Report: committed successfully with message + files included.
+Note: 

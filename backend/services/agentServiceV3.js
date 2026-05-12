@@ -4,22 +4,20 @@ const { toolDeclarations, executeTool } = require('../utils/agentToolsV3');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+const MODEL = 'gemma-4-31b-it'; // Đổi sang Gemini 2.5 Flash vì Gemma 4 hay bị dính lỗi tự "lẩm bẩm" (Chain of Thought) tiếng Anh.
 const MAX_ITERATIONS = 4;
 const SIGNAL_CLARIFICATION = 'CLARIFICATION_REQUEST';
 const SIGNAL_PENDING_TXN   = 'PENDING_TRANSACTION';
 
 /**
- * Chạy vòng lặp Agentic ReAct (Fix #1 & #5):
+ * Chạy vòng lặp Agentic ReAct (Google GenAI SDK):
  *
- * Luồng đúng của Google GenAI function calling:
+ * Luồng:
  *   1. sendMessage(userMessage)        → response có thể có functionCalls
  *   2. Thực thi tools → thu thập observations
- *   3. sendMessage(toolResponseParts)  → response tiếp theo (đây chính là "vòng lặp")
+ *   3. sendMessage(toolResponseParts)  → response tiếp theo
  *   4. Lặp lại từ bước 2 nếu có thêm functionCalls
  *   5. Khi response không còn functionCalls → đó là FINAL_ANSWER
- *
- * Mỗi lần `sendMessage` đều trả về response ngay — không cần gửi thêm
- * một message "thừa" để trigger AI tiếp tục như thiết kế cũ.
  *
  * @param {string} userId       - ID người dùng từ JWT middleware
  * @param {string} userMessage  - Tin nhắn hiện tại của người dùng
@@ -33,7 +31,7 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
         });
 
         const model = genAI.getGenerativeModel({
-            model: 'gemma-3-27b-it',
+            model: MODEL,
             tools: [{ functionDeclarations: toolDeclarations }],
             toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
             systemInstruction: getSystemPrompt(userId, today),
@@ -47,9 +45,6 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
         let result = await chat.sendMessage(userMessage);
 
         for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
-            // TODO: remove in production — giúp debug khi test
-            // console.log(`[AgentV3] iteration ${iteration + 1}/${MAX_ITERATIONS}`);
-
             const response = result.response;
             const functionCalls = response.functionCalls();
 
@@ -84,7 +79,7 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
             result = await chat.sendMessage(toolResponseParts);
         }
 
-        // Kiểm tra response cuối sau khi for loop kết thúc (edge case: AI cần đúng MAX_ITERATIONS lượt)
+        // Kiểm tra response cuối sau khi for loop kết thúc
         const lastResponse = result.response;
         const lastCalls = lastResponse.functionCalls();
         if (!lastCalls || lastCalls.length === 0) {
@@ -99,7 +94,7 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
 
     } catch (err) {
         // Bắt mọi lỗi ngoài dự kiến (API timeout, network, parse error...)
-        // để Controller luôn nhận được object thay vì unhandled rejection
+        console.error('[AgentV3] Error:', err);
         return {
             type: 'ERROR',
             payload: 'Có lỗi kết nối với AI. Vui lòng thử lại sau.'

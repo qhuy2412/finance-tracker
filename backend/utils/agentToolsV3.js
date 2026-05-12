@@ -136,13 +136,14 @@ const executeTool = async (name, args, userId) => {
                 }
 
                 // Convert chuỗi số (vd: '2000000.00') thành số nguyên để LLM không bị ảo giác
-                return rows.map(row => {
+                const processedRows = rows.map(row => {
                     const obj = {};
                     for (const [k, v] of Object.entries(row)) {
                         obj[k] = (typeof v === 'string' && /^-?\d+\.\d+$/.test(v)) ? Number(v) : v;
                     }
                     return obj;
                 });
+                return { rows: processedRows };
             } catch (err) {
                 // Bắt lỗi ONLY_FULL_GROUP_BY tại đây và trả về cho AI tự sửa
                 return { error: `Lỗi khi thực thi SQL: ${err.message}. Nếu lỗi liên quan GROUP BY, hãy thêm tất cả cột không-aggregate vào mệnh đề GROUP BY hoặc bọc bằng ANY_VALUE().` };

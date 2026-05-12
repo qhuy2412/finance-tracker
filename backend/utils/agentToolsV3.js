@@ -2,6 +2,11 @@ const db = require('../config/db');
 const Wallet = require('../model/walletModel');
 const Category = require('../model/categoryModel');
 
+// Fix #1: Import từ sqlValidator.js — nguồn duy nhất cho cả V2 lẫn V3
+const { validateSql, validateSqlWithExplain } = require('./sqlValidator');
+
+const MAX_QUERY_ROWS = 100;
+
 // ─── TOOL DEFINITIONS (GOOGLE GEN AI SCHEMA) ─────────────────────────────
 const toolDeclarations = [
     {
@@ -59,53 +64,33 @@ const toolDeclarations = [
     }
 ];
 
-// ─── SQL SECURITY VALIDATORS ──────────────────────────────────────────────
-const ALLOWED_TABLES = new Set([
-    'transactions', 'wallets', 'categories',
-    'transfers', 'saving_goals', 'debts', 'budgets',
-    'saving_transactions'
-]);
+// ─── HELPER: Ép LIMIT tối đa MAX_QUERY_ROWS ───────────────────────────────
+// Fix #4: Thay vì chỉ thêm LIMIT khi chưa có, phải override mọi LIMIT > 100
+// để tránh trường hợp AI tự ghi "LIMIT 5000" qua kiểm tra.
+const capQueryLimit = (sql) => {
+    const limitRx = /\bLIMIT\s+(\d+)(\s*,\s*\d+)?\b/i;
+    const match = limitRx.exec(sql);
 
-const validateSql = (sql, userId) => {
-    if (!sql || typeof sql !== 'string') return { ok: false, reason: 'SQL rỗng' };
-    const trimmed = sql.trim();
-
-    if (!/^\s*SELECT\b/i.test(trimmed)) return { ok: false, reason: 'Chỉ cho phép lệnh SELECT' };
-
-    const forbidden = /\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|CREATE|REPLACE|EXEC|EXECUTE|GRANT|REVOKE|SHOW|CALL|LOAD|OUTFILE)\b/i;
-    if (forbidden.test(trimmed)) return { ok: false, reason: 'Phát hiện từ khoá SQL bị cấm' };
-
-    if (/\bSELECT\b.+\bINTO\b/is.test(trimmed)) return { ok: false, reason: 'SELECT INTO bị cấm' };
-
-    const tableRx = /\b(?:FROM|JOIN)\s+[`"]?(\w+)[`"]?/gi;
-    let match;
-    while ((match = tableRx.exec(trimmed)) !== null) {
-        const tbl = match[1].toLowerCase();
-        if (!ALLOWED_TABLES.has(tbl)) return { ok: false, reason: `Bảng không được phép truy cập: ${tbl}` };
+    if (!match) {
+        // Chưa có LIMIT → thêm vào cuối
+        return `${sql} LIMIT ${MAX_QUERY_ROWS}`;
     }
 
-    const escapedId = userId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const userIdRx = new RegExp(`(?:\\w+\\.)?user_id\\s*=\\s*'${escapedId}'`, 'i');
-    if (!userIdRx.test(trimmed)) {
-        return { ok: false, reason: "Bảo mật: SQL thiếu điều kiện lọc [alias.]user_id = 'uuid'." };
+    const existingLimit = parseInt(match[1], 10);
+    if (existingLimit <= MAX_QUERY_ROWS) {
+        // Limit hợp lệ → giữ nguyên
+        return sql;
     }
 
-    return { ok: true };
-};
-
-const validateSqlWithExplain = async (sql) => {
-    try {
-        await db.execute(`EXPLAIN ${sql}`);
-        return { ok: true };
-    } catch (e) {
-        return { ok: false, error: e.message || String(e) };
-    }
+    // Limit vượt ngưỡng → override thành MAX_QUERY_ROWS
+    return sql.replace(limitRx, `LIMIT ${MAX_QUERY_ROWS}`);
 };
 
 // ─── TOOL EXECUTION LOGIC ─────────────────────────────────────────────────
 /**
- * Thực thi các Tool. 
- * Kết quả trả về phải là String (JSON stringified) để LLM đọc như Observation.
+ * Thực thi Tool được AI yêu cầu.
+ * Kết quả trả về là Object (parsed) để AgentService xử lý tín hiệu đặc biệt
+ * rồi mới JSON.stringify trả về cho LLM như Observation.
  */
 const executeTool = async (name, args, userId) => {
     switch (name) {
@@ -115,88 +100,92 @@ const executeTool = async (name, args, userId) => {
                     Wallet.getAllWalletsByUserId(userId),
                     Category.getAllCategoriesByUserId(userId),
                 ]);
-                const context = {
+                return {
                     wallets: wallets.map(w => ({ name: w.name, type: w.type, balance: w.balance })),
                     categories: categories.map(c => ({ name: c.name, type: c.type }))
                 };
-                return JSON.stringify(context);
             } catch (err) {
-                return JSON.stringify({ error: `Lỗi khi lấy context: ${err.message}` });
+                return { error: `Lỗi khi lấy context: ${err.message}` };
             }
         }
 
         case 'query_database': {
-            const sql = args.sql;
-            
-            // 1. Kiểm tra an toàn bảo mật
+            const { sql } = args;
+
+            // 1. Kiểm tra bảo mật tĩnh (chỉ SELECT, chỉ bảng hợp lệ, bắt buộc user_id)
             const secCheck = validateSql(sql, userId);
             if (!secCheck.ok) {
-                return JSON.stringify({ error: `SQL bị từ chối: ${secCheck.reason}` });
+                return { error: `SQL bị từ chối: ${secCheck.reason}` };
             }
 
-            // 2. Chạy EXPLAIN để MySQL tự test lỗi (vd: ONLY_FULL_GROUP_BY)
+            // 2. EXPLAIN để bắt lỗi syntax cơ bản của MySQL (column không tồn tại, sai JOIN...)
+            // Lưu ý: EXPLAIN không bắt được ONLY_FULL_GROUP_BY — lỗi đó chỉ xuất hiện khi chạy thật.
+            // Nếu thực thi bị lỗi GROUP BY, error sẽ được trả về ở bước 3 để AI tự sửa.
             const explainResult = await validateSqlWithExplain(sql);
             if (!explainResult.ok) {
-                // Trả lỗi này về cho LLM để nó tự biết đường sửa
-                return JSON.stringify({ error: `Lỗi MySQL Syntax: ${explainResult.error}. Hãy sửa lại câu SQL và gọi lại tool này.` });
+                return { error: `Lỗi SQL: ${explainResult.error}. Hãy kiểm tra lại tên cột, tên bảng, và sửa lại câu SQL.` };
             }
 
-            // 3. Chạy thực tế (Giới hạn tối đa 100 dòng để chống nổ token)
+            // 3. Chạy thực tế với LIMIT hard-cap tối đa 100 dòng (Fix #4)
             try {
-                // Wrap in subquery to enforce hard limit securely just in case
-                let finalSql = sql;
-                if (!/LIMIT\s+\d+/i.test(finalSql)) {
-                    finalSql = `${finalSql} LIMIT 100`;
+                const finalSql = capQueryLimit(sql);
+                const [rows] = await db.execute(finalSql);
+
+                if (!rows || rows.length === 0) {
+                    return { result: "Không có dữ liệu phù hợp." };
                 }
 
-                const [rows] = await db.execute(finalSql);
-                
-                if (!rows || rows.length === 0) return JSON.stringify({ result: "Không có dữ liệu phù hợp." });
-                
-                // Cắt lấy 100 dòng đầu và convert số tiền dạng chuỗi sang số nguyên
-                const cleanRows = rows.slice(0, 100).map(row => {
+                // Convert chuỗi số (vd: '2000000.00') thành số nguyên để LLM không bị ảo giác
+                return rows.map(row => {
                     const obj = {};
                     for (const [k, v] of Object.entries(row)) {
                         obj[k] = (typeof v === 'string' && /^-?\d+\.\d+$/.test(v)) ? Number(v) : v;
                     }
                     return obj;
                 });
-                
-                return JSON.stringify(cleanRows);
             } catch (err) {
-                return JSON.stringify({ error: `Lỗi khi thực thi SQL: ${err.message}` });
+                // Bắt lỗi ONLY_FULL_GROUP_BY tại đây và trả về cho AI tự sửa
+                return { error: `Lỗi khi thực thi SQL: ${err.message}. Nếu lỗi liên quan GROUP BY, hãy thêm tất cả cột không-aggregate vào mệnh đề GROUP BY hoặc bọc bằng ANY_VALUE().` };
             }
         }
 
         case 'propose_transaction': {
-            // Trả về JSON để AgentService bắt được tín hiệu "PENDING_TRANSACTION"
-            return JSON.stringify({ 
-                status: "success", 
-                action: "PENDING_TRANSACTION", 
-                data: args,
-                message: "Đã ghi nhận yêu cầu tạo giao dịch. Yêu cầu AI thông báo cho người dùng xác nhận 'Đồng ý' hoặc 'Hủy'."
-            });
+            // Fix #3: Validate args trước khi chấp nhận đề xuất
+            const { wallet_name, category_name, type, amount, date } = args;
+            if (!wallet_name || !category_name) {
+                return { error: 'Tên ví và danh mục không được để trống. Hãy hỏi lại người dùng.' };
+            }
+            if (type !== 'INCOME' && type !== 'EXPENSE') {
+                return { error: `Loại giao dịch không hợp lệ: "${type}". Chỉ chấp nhận INCOME hoặc EXPENSE.` };
+            }
+            if (!amount || Number(amount) <= 0) {
+                return { error: 'Số tiền phải là số dương. Hãy hỏi lại người dùng.' };
+            }
+            if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                return { error: `Ngày giao dịch không hợp lệ: "${date}". Định dạng phải là YYYY-MM-DD.` };
+            }
+
+            // Tín hiệu đặc biệt: AgentService sẽ bắt action này và ngắt vòng lặp
+            return {
+                action: "PENDING_TRANSACTION",
+                data: { wallet_name, category_name, type, amount: Number(amount), date, note: args.note || '' },
+            };
         }
 
         case 'ask_user_clarification': {
-            // Trả về tín hiệu "CLARIFICATION_REQUEST"
-            return JSON.stringify({
-                status: "success",
+            // Tín hiệu đặc biệt: AgentService sẽ bắt action này và ngắt vòng lặp
+            return {
                 action: "CLARIFICATION_REQUEST",
                 data: args.question,
-                message: "Hãy dừng suy nghĩ và đưa câu hỏi này trực tiếp cho người dùng."
-            });
+            };
         }
 
         default:
-            return JSON.stringify({ error: `Tool ${name} không tồn tại trong hệ thống.` });
+            return { error: `Tool "${name}" không tồn tại. Các tool hợp lệ: get_user_account_context, query_database, propose_transaction, ask_user_clarification.` };
     }
 };
 
 module.exports = {
     toolDeclarations,
     executeTool,
-    ALLOWED_TABLES,
-    validateSql,
-    validateSqlWithExplain
 };

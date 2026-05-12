@@ -1,3 +1,6 @@
+// sanitizeUserId bắt buộc phải được gọi trước khi nhúng userId vào Prompt.
+// Nếu bỏ qua bước này, một userId độc hại (chứa SQL injection hoặc prompt injection)
+// có thể phá vỡ cấu trúc System Prompt và gây rủi ro bảo mật nghiêm trọng.
 const { sanitizeUserId } = require('./promptsV2');
 
 const getSystemPrompt = (rawUserId, todayDate) => {

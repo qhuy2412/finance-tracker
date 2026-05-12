@@ -18,6 +18,34 @@ const Chat = {
         return rows[0] || null;
     },
 
+    // Kiểm tra session có thuộc về userId không (dùng để chặn IDOR)
+    getSessionOwner: async (sessionId) => {
+        const [rows] = await db.execute(
+            'SELECT user_id FROM chat_sessions WHERE id = ? LIMIT 1',
+            [sessionId]
+        );
+        return rows[0]?.user_id || null;
+    },
+
+    // Lấy owner + messages trong 1 query — dùng trong handleChat để tránh 2 round-trips
+    // Trả về: { owner: string|null, messages: Array }
+    getSessionWithMessages: async (sessionId) => {
+        const [[sessionRows], [msgRows]] = await Promise.all([
+            db.execute(
+                'SELECT user_id FROM chat_sessions WHERE id = ? LIMIT 1',
+                [sessionId]
+            ),
+            db.execute(
+                "SELECT role, content, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC, FIELD(role,'user','assistant') ASC LIMIT 50",
+                [sessionId]
+            ),
+        ]);
+        return {
+            owner: sessionRows[0]?.user_id || null,
+            messages: msgRows,
+        };
+    },
+
     // Cập nhật timestamp session
     touchSession: async (id) => {
         return await db.execute(

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { handleChat, getSessions, createSession, getMessages } = require('../controller/chatControllerV2');
+const { handleChat, getSessions, createSession, getMessages } = require('../controller/chatControllerV3');
 const authMiddleware = require('../middleware/authMiddleware');
 
 // All chat routes require authentication

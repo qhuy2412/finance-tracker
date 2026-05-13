@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const Chat = require('../model/chatModel');
-const { runAgentLoop } = require('../services/agentServiceV3');
+const { runAgentLoop, checkConfirmationIntent } = require('../services/agentServiceV3');
 const financeService = require('../services/financeService');
 const { sanitizeHistoryLine } = require('../utils/promptsV2');
 
@@ -17,18 +17,6 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
-const isConfirm = (text) => {
-    const t = (text || '').trim();
-    // Chỉ dùng exact-match để tránh false positive
-    // (VD: "Bạn có đồng ý rằng tôi nên tiết kiệm không?" không được xác nhận làm giao dịch)
-    return /^(đồng ý|ok|okay|xác nhận|confirm|làm luôn|thực hiện|chuẩn|chuẩn rồi|ôk|được rồi|đúng|đúng rồi|chính xác|có|được)$/i.test(t);
-};
-
-const isCancel = (text) => {
-    const t = (text || '').trim();
-    // Flag `i` trong regex đủ xử lý case-insensitive — không cần .toLowerCase()
-    return /^(hủy|huỷ|không|từ chối|cancel|ko|stop)$/i.test(t) || /^(hủy|huỷ|cancel|stop)\b/i.test(t);
-};
 
 const formatTransactionConfirmText = (data) =>
     `Bạn xác nhận thông tin sau:\n` +
@@ -88,14 +76,19 @@ const handleChatV3 = async (req, res) => {
             dbMessages = messages;
         }
 
-        // Lưu chat và trả response — ghi DB bất đồng bộ (fire-and-forget)
-        const sendReply = (reply) => {
-            Promise.all([
-                Chat.saveMessage(uuidv4(), sessionId, 'user', message),
-                Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply),
-                Chat.touchSession(sessionId),
-            ]).catch(e => console.error('[ChatV3] Save failed:', e));
-            return res.json({ reply, session_id: sessionId });
+        // Lưu chat và trả response
+        const sendReply = async (reply) => {
+            try {
+                await Promise.all([
+                    Chat.saveMessage(uuidv4(), sessionId, 'user', message),
+                    Chat.saveMessage(uuidv4(), sessionId, 'assistant', reply),
+                    Chat.touchSession(sessionId),
+                ]);
+                return res.json({ reply, session_id: sessionId });
+            } catch (e) {
+                console.error('[ChatV3] Save failed:', e);
+                return res.status(500).json({ error: 'Không thể lưu tin nhắn do sự cố hệ thống.' });
+            }
         };
 
         // ── Bước 1: Kiểm tra pending transaction ──────────────────────────
@@ -104,27 +97,30 @@ const handleChatV3 = async (req, res) => {
             if (Date.now() - pending.createdAt > PENDING_TTL_MS) {
                 pendingActions.delete(sessionId);
                 // Hết hạn → tiếp tục xử lý tin nhắn như bình thường
-            } else if (isCancel(message)) {
-                pendingActions.delete(sessionId);
-                return sendReply('Mình đã hủy thao tác lưu giao dịch.');
-            } else if (isConfirm(message)) {
-                pendingActions.delete(sessionId);
-                try {
-                    await financeService.createTransaction(userId, {
-                        wallet_name:      pending.data.wallet_name,
-                        category_name:    pending.data.category_name,
-                        type:             pending.data.type,
-                        amount:           pending.data.amount,
-                        transaction_date: pending.data.date,
-                        note:             pending.data.note || '',
-                    });
-                    return sendReply('Đã ghi giao dịch thành công nhé! 🎉');
-                } catch (e) {
-                    return sendReply(formatTransactionErrorVi(e.message));
-                }
             } else {
-                // User nhắn tin mới → hủy pending cũ và tiếp tục xử lý
-                pendingActions.delete(sessionId);
+                const intent = await checkConfirmationIntent(message);
+                if (intent === 'CANCEL') {
+                    pendingActions.delete(sessionId);
+                    return await sendReply('Mình đã hủy thao tác lưu giao dịch.');
+                } else if (intent === 'CONFIRM') {
+                    pendingActions.delete(sessionId);
+                    try {
+                        await financeService.createTransaction(userId, {
+                            wallet_name:      pending.data.wallet_name,
+                            category_name:    pending.data.category_name,
+                            type:             pending.data.type,
+                            amount:           pending.data.amount,
+                            transaction_date: pending.data.date,
+                            note:             pending.data.note || '',
+                        });
+                        return await sendReply('Đã ghi giao dịch thành công nhé! 🎉');
+                    } catch (e) {
+                        return await sendReply(formatTransactionErrorVi(e.message));
+                    }
+                } else {
+                    // User nhắn tin mới → hủy pending cũ và tiếp tục xử lý
+                    pendingActions.delete(sessionId);
+                }
             }
         }
 
@@ -135,22 +131,22 @@ const handleChatV3 = async (req, res) => {
         // ── Bước 3: Xử lý kết quả từ Agent ───────────────────────────────
         switch (agentResult.type) {
             case 'FINAL_ANSWER':
-                return sendReply(agentResult.payload);
+                return await sendReply(agentResult.payload);
 
             case 'CLARIFICATION':
                 // Agent muốn hỏi lại người dùng — gửi câu hỏi trực tiếp
-                return sendReply(agentResult.payload);
+                return await sendReply(agentResult.payload);
 
             case 'PENDING_TRANSACTION': {
                 // Agent đề xuất tạo giao dịch — lưu vào store và hỏi xác nhận
                 const txData = agentResult.payload;
                 pendingActions.set(sessionId, { data: txData, createdAt: Date.now() });
-                return sendReply(formatTransactionConfirmText(txData));
+                return await sendReply(formatTransactionConfirmText(txData));
             }
 
             case 'ERROR':
             default:
-                return sendReply(agentResult.payload || 'Có lỗi xảy ra. Vui lòng thử lại.');
+                return await sendReply(agentResult.payload || 'Có lỗi xảy ra. Vui lòng thử lại.');
         }
 
     } catch (err) {

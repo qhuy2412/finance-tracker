@@ -68,22 +68,38 @@ const toolDeclarations = [
 // Fix #4: Thay vì chỉ thêm LIMIT khi chưa có, phải override mọi LIMIT > 100
 // để tránh trường hợp AI tự ghi "LIMIT 5000" qua kiểm tra.
 const capQueryLimit = (sql) => {
-    const limitRx = /\bLIMIT\s+(\d+)(\s*,\s*\d+)?\b/i;
-    const match = limitRx.exec(sql);
+    // Tách riêng 3 trường hợp syntax của LIMIT trong MySQL
+    const offsetSyntaxRx = /\bLIMIT\s+(\d+)\s+OFFSET\s+(\d+)\b/i;
+    const commaSyntaxRx = /\bLIMIT\s+(\d+)\s*,\s*(\d+)\b/i;
+    const simpleSyntaxRx = /\bLIMIT\s+(\d+)\b/i;
 
-    if (!match) {
-        // Chưa có LIMIT → thêm vào cuối
-        return `${sql} LIMIT ${MAX_QUERY_ROWS}`;
+    let match = offsetSyntaxRx.exec(sql);
+    if (match) {
+        let rowCount = parseInt(match[1], 10);
+        let offset = parseInt(match[2], 10);
+        rowCount = Math.min(rowCount, MAX_QUERY_ROWS);
+        if (offset > 1000) offset = 1000; // Ngăn offset quá lớn
+        return sql.replace(offsetSyntaxRx, `LIMIT ${rowCount} OFFSET ${offset}`);
     }
 
-    const existingLimit = parseInt(match[1], 10);
-    if (existingLimit <= MAX_QUERY_ROWS) {
-        // Limit hợp lệ → giữ nguyên
-        return sql;
+    match = commaSyntaxRx.exec(sql);
+    if (match) {
+        let offset = parseInt(match[1], 10);
+        let rowCount = parseInt(match[2], 10);
+        rowCount = Math.min(rowCount, MAX_QUERY_ROWS);
+        if (offset > 1000) offset = 1000; // Ngăn offset quá lớn
+        return sql.replace(commaSyntaxRx, `LIMIT ${offset}, ${rowCount}`);
     }
 
-    // Limit vượt ngưỡng → override thành MAX_QUERY_ROWS
-    return sql.replace(limitRx, `LIMIT ${MAX_QUERY_ROWS}`);
+    match = simpleSyntaxRx.exec(sql);
+    if (match) {
+        let rowCount = parseInt(match[1], 10);
+        rowCount = Math.min(rowCount, MAX_QUERY_ROWS);
+        return sql.replace(simpleSyntaxRx, `LIMIT ${rowCount}`);
+    }
+
+    // Không có LIMIT → thêm vào cuối
+    return `${sql} LIMIT ${MAX_QUERY_ROWS}`;
 };
 
 // ─── TOOL EXECUTION LOGIC ─────────────────────────────────────────────────

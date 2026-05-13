@@ -26,4 +26,4 @@ description: Read git diff and auto-generate a conventional commit message, then
 9. Run git add -A // turbo
 10. Run git commit -m "[generated message]"
 11. Report: committed successfully with message + files included.
-Note: 
+Note: Only commit by english, short

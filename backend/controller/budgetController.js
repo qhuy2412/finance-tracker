@@ -44,4 +44,16 @@ const getBudgetStatus = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-module.exports = { setBudget, getBudgetStatus };
+
+const deleteBudget = async (req, res) => {
+    const userId = req.user.id;
+    const { id } = req.params;
+    try {
+        const result = await financeService.deleteBudget(userId, id);
+        return res.status(200).json(result);
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({ message: error.message });
+    }
+};
+
+module.exports = { setBudget, getBudgetStatus, deleteBudget };

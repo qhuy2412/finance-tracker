@@ -5,6 +5,6 @@ const budgetController = require('../controller/budgetController');
 
 router.post('/', authMiddleware, budgetController.setBudget);
 router.get('/', authMiddleware, budgetController.getBudgetStatus);
-
+router.delete('/:id', authMiddleware, budgetController.deleteBudget);
 
 module.exports = router;

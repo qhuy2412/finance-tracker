@@ -388,5 +388,6 @@ module.exports = {
     createDebt: (userId, params) => debtFinance.createDebt(userId, params),
     setBudget: (userId, params) => budgetFinance.setBudget(userId, params),
     getBudgetStatusByUserId: (userId) => budgetFinance.getBudgetStatusByUserId(userId),
+    deleteBudget: (userId, budgetId) => budgetFinance.deleteBudget(userId, budgetId),
 };
 

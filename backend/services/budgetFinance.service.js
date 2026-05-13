@@ -28,6 +28,15 @@ const budgetFinance = {
     },
 
     getBudgetStatusByUserId: (userId) => Budget.getBudgetStatusByUserId(userId),
+
+    async deleteBudget(userId, budgetId) {
+        if (!budgetId) throw createHttpError(400, 'Budget ID is required');
+        const [result] = await db.execute('DELETE FROM budgets WHERE id = ? AND user_id = ?', [budgetId, userId]);
+        if (result.affectedRows === 0) {
+            throw createHttpError(404, 'Budget not found or not authorized');
+        }
+        return { message: 'Budget deleted successfully' };
+    }
 };
 
 module.exports = budgetFinance;

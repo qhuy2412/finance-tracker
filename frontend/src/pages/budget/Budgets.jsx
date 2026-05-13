@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
-import { Plus, Loader2, X, ChevronLeft, ChevronRight, TrendingDown, Target, PiggyBank } from "lucide-react";
+import { Plus, Loader2, X, ChevronLeft, ChevronRight, TrendingDown, Target, PiggyBank, Trash2, Pencil } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
-import { getBudgetStatus, setBudget } from "../../services/budget.service";
+import ConfirmModal from "@/components/ConfirmModal";
+import { getBudgetStatus, setBudget, deleteBudget } from "../../services/budget.service";
 import { getCategories } from "../../services/category.service";
 import { toast } from "react-toastify";
-
 const fmtAmt = (n) => Number(n || 0).toLocaleString("vi-VN") + " ₫";
 
 // Helper to convert lowercase-kebab to PascalCase and render icon
@@ -29,7 +29,9 @@ export default function Budgets() {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingBudget, setEditingBudget] = useState(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -61,6 +63,7 @@ export default function Budgets() {
   };
 
   const openModal = (existingBudget = null) => {
+    setEditingBudget(existingBudget);
     if (existingBudget) {
       // Find the category id corresponding to existingBudget
       const cat = categories.find(c => c.name === existingBudget.category_name);
@@ -77,7 +80,11 @@ export default function Budgets() {
     setIsModalOpen(true);
   };
 
-  const closeModal = () => setIsModalOpen(false);
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingBudget(null);
+    setIsConfirmOpen(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -110,6 +117,23 @@ export default function Budgets() {
     }
   };
 
+  const executeDelete = async () => {
+    if (!editingBudget) return;
+    
+    try {
+      setIsSubmitting(true);
+      await deleteBudget(editingBudget.budget_id);
+      await fetchInitialData();
+      closeModal();
+      toast.success("Đã xóa ngân sách thành công!");
+    } catch (error) {
+      console.error("Failed to delete budget:", error);
+      toast.error(error.response?.data?.message || "Lỗi khi xóa ngân sách!");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handlePrevMonth = () => {
     setCurrentDate(prev => {
       const newD = new Date(prev);
@@ -137,7 +161,6 @@ export default function Budgets() {
   
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      
       {/* Header & Month Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
         <h2 className="text-2xl font-bold text-slate-800">Ngân sách</h2>
@@ -233,7 +256,7 @@ export default function Budgets() {
                   return (
                     <div 
                       key={budget.budget_id} 
-                      className="p-5 hover:bg-slate-50/80 transition-colors cursor-pointer"
+                      className="p-5 hover:bg-slate-50/80 transition-colors cursor-pointer group"
                       onClick={() => openModal(budget)}
                       title="Nhấn để chỉnh sửa ngân sách"
                     >
@@ -243,7 +266,10 @@ export default function Budgets() {
                             <CategoryIcon iconName={budget.category_icon} size={20} />
                           </div>
                           <div>
-                            <h4 className="font-semibold text-slate-800">{budget.category_name}</h4>
+                            <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                              {budget.category_name}
+                              <Pencil size={12} className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </h4>
                             <p className="text-xs text-slate-500 mt-0.5">
                               {isOver ? 'Vượt ngân sách' : `Còn lại ${fmtAmt(remaining)}`}
                             </p>
@@ -277,7 +303,7 @@ export default function Budgets() {
           <div className="relative w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <h3 className="font-semibold text-slate-800">
-                Thiết lập ngân sách tháng {month}/{year}
+                {editingBudget ? `Chỉnh sửa ngân sách tháng ${month}/${year}` : `Thiết lập ngân sách tháng ${month}/${year}`}
               </h3>
               <button type="button" onClick={closeModal} className="text-slate-400 hover:text-slate-600">
                 <X size={18} />
@@ -289,10 +315,11 @@ export default function Budgets() {
                 <Label htmlFor="category_id">Danh mục</Label>
                 <select
                   id="category_id"
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
                   value={formData.category_id}
                   onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                   required
+                  disabled={!!editingBudget}
                 >
                   <option value="" disabled>-- Chọn danh mục --</option>
                   {categories.filter(c => c.type === 'EXPENSE').map(c => (
@@ -316,6 +343,18 @@ export default function Budgets() {
               </div>
 
               <div className="pt-4 flex gap-2">
+                {editingBudget && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setIsConfirmOpen(true)} 
+                    disabled={isSubmitting} 
+                    className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 w-12 shrink-0 px-0"
+                    title="Xóa ngân sách"
+                  >
+                    <Trash2 size={18} />
+                  </Button>
+                )}
                 <Button type="button" variant="outline" onClick={closeModal} className="flex-1">
                   Hủy
                 </Button>
@@ -327,8 +366,20 @@ export default function Budgets() {
             </form>
           </div>
         </div>
-      )}
 
+      )}
+      
+
+      {/* Confirm Modal for Deletion */}
+      <ConfirmModal
+        isOpen={isConfirmOpen}
+        onClose={() => setIsConfirmOpen(false)}
+        onConfirm={executeDelete}
+        title="Xóa ngân sách"
+        message={`Bạn có chắc chắn muốn xóa ngân sách cho danh mục "${editingBudget?.category_name}" không? Hành động này không thể hoàn tác.`}
+        confirmText="Xóa"
+        isLoading={isSubmitting}
+      />
     </div>
   );
 }

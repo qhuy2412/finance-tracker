@@ -1,0 +1,54 @@
+name: FinTra CD Pipeline
+
+on:
+  workflow_run:
+    workflows: ["FinTra CI Pipeline"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Download Frontend Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend-dist
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: SCP Frontend Build to Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.VM1_IP }},${{ secrets.VM2_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "frontend-dist"
+          target: "/tmp"
+
+      - name: Deploy & Build on Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VM1_IP }},${{ secrets.VM2_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            cd /var/www/fintra/finance-tracker
+            git pull origin main
+
+            sudo cp -r /tmp/frontend-dist/* /var/www/html/fintra/
+            rm -rf /tmp/frontend-dist
+
+            cd backend
+            npm install
+            pm2 delete fintra-api || true
+            pm2 start server.js --name fintra-api
+
+            sudo chown -R www-data:www-data /var/www/html/fintra/
+            sudo systemctl reload nginx

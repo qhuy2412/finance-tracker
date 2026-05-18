@@ -42,7 +42,9 @@ jobs:
             cd /var/www/fintra/finance-tracker
             git pull origin main
 
-            sudo cp -r /tmp/frontend-dist/* /var/www/html/fintra/
+            rm -rf frontend/dist
+            mkdir -p frontend/dist
+            sudo cp -r /tmp/frontend-dist/* frontend/dist/
             rm -rf /tmp/frontend-dist
 
             cd backend
@@ -50,5 +52,5 @@ jobs:
             pm2 delete fintra-api || true
             pm2 start server.js --name fintra-api
 
-            sudo chown -R www-data:www-data /var/www/html/fintra/
+            sudo chown -R www-data:www-data frontend/dist/
             sudo systemctl reload nginx

@@ -13,7 +13,8 @@ import {
   HandCoins,
   Coins,
   History,
-  Menu
+  Menu,
+  Settings as SettingsIcon
 } from "lucide-react";
 import { useAuth } from "@/store/AuthContext";
 
@@ -25,6 +26,7 @@ const menuItems = [
   { icon: PiggyBank, label: "Ngân sách", path: "/budgets" },
   { icon: Coins, label: "Khoản tiết kiệm", path: "/savings" },
   { icon: ArrowLeftRight, label: "Giao dịch nội bộ", path: "/transfers" },
+  { icon: SettingsIcon, label: "Cài đặt", path: "/settings" },
 ];
 
 export default function Layout() {

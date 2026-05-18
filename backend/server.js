@@ -15,6 +15,8 @@ const budgetRoute = require("./router/budgetRoute");
 const dashboardRoute = require("./router/dashboardRoute");
 const chatRoute = require("./router/chatRoute");
 const billRoute = require("./router/billRoute");
+const telegramRoute = require("./router/telegramRoute");
+const { initTelegramBot } = require("./controller/telegramController");
 
 const db = require("./config/db");
 const app = express();
@@ -40,6 +42,7 @@ app.use("/api/budgets", budgetRoute);
 app.use("/api/dashboard", dashboardRoute);
 app.use("/api/chat", chatRoute);
 app.use("/api/bills", billRoute);
+app.use("/api/telegram", telegramRoute);
 
 // ── Global error handler ────────────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
@@ -54,6 +57,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 9999;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    initTelegramBot();
 });
 
 module.exports = app;

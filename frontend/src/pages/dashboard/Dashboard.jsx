@@ -51,7 +51,7 @@ export default function Dashboard() {
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-slate-800">Tổng quan tài chính</h2>
+        <h2 className="text-2xl font-bold text-slate-800">Tổng quan tài chính của bạn</h2>
       </div>
 
       {/* Summary Cards */}

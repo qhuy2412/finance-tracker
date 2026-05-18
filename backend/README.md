@@ -1,6 +1,6 @@
 # FinTra — Backend API
 
-REST API for the FinTra personal finance management app. Built with Express v5 + MySQL, with AI integrations (Groq + Gemini).
+REST API for the FinTra personal finance management app. Built with Express v5 + MySQL, with AI integrations (Google Generative AI / Gemini) and Telegram bot support.
 
 ## Tech Stack
 
@@ -8,8 +8,9 @@ REST API for the FinTra personal finance management app. Built with Express v5 +
 - **Framework**: Express v5
 - **Database**: MySQL 8 (raw SQL, mysql2 — no ORM)
 - **Auth**: JWT (httpOnly cookie) + bcrypt
-- **AI Chatbot**: Groq SDK (LLM)
+- **AI Chatbot**: Google Generative AI — Gemma 4 (agentic loop)
 - **Bill Scanning**: Google Generative AI (Gemini)
+- **Telegram Bot**: node-telegram-bot-api
 - **Email**: Resend + Nodemailer
 - **Dev**: nodemon
 
@@ -37,8 +38,10 @@ JWT_EXPIRE=7d
 RESEND_API_KEY=your_resend_api_key
 SENDER_EMAIL=noreply@fintra.app
 
-GROQ_API_KEY=your_groq_api_key
-GOOGLE_API_KEY=your_google_generative_ai_key
+GEMINI_API_KEY=your_google_generative_ai_key
+
+# Optional — omit to disable Telegram bot
+TELEGRAM_BOT_API=your_telegram_bot_token
 ```
 
 ## Scripts
@@ -53,8 +56,8 @@ npm start      # Production server
 ```
 backend/
 ├── config/
-│   └── db.js                    # MySQL connection pool
-├── controller/                  # Request/response handlers
+│   └── db.js                      # MySQL connection pool
+├── controller/                    # Request/response handlers
 │   ├── authController.js
 │   ├── walletController.js
 │   ├── transactionController.js
@@ -65,29 +68,34 @@ backend/
 │   ├── billController.js
 │   ├── categoryController.js
 │   ├── dashboardController.js
-│   └── chatControllerV2.js      # AI chatbot (multi-session)
+│   ├── chatControllerV3.js        # AI chatbot — agentic loop
+│   └── telegramController.js      # Telegram bot handler
 ├── middleware/
-│   └── authMiddleware.js        # JWT verification
-├── model/                       # Raw SQL query functions
+│   └── authMiddleware.js          # JWT verification
+├── model/                         # Raw SQL query functions
 │   ├── userModel.js
 │   ├── walletModel.js
 │   ├── transactionModel.js
 │   ├── budgetModel.js
 │   ├── debtModel.js
-│   ├── savingModel.js           # ⚠️ Complex withdrawal logic
+│   ├── savingModel.js             # ⚠️ Complex withdrawal logic
 │   ├── transferModel.js
 │   ├── categoryModel.js
-│   └── chatModel.js
-├── router/                      # Express route definitions
-├── services/                    # Business logic & external services
-│   ├── financeService.js        # Core finance calculations
-│   ├── *Finance.service.js      # Feature-specific services
-│   ├── financeEntityResolver.js
-│   └── financeErrors.js
+│   ├── chatModel.js
+│   └── telegramModel.js
+├── router/                        # Express route definitions
+├── services/                      # Business logic & external services
+│   ├── agentServiceV3.js          # Agentic ReAct loop (Google GenAI)
+│   ├── chatService.js             # Shared chat processor (web + Telegram)
+│   ├── financeService.js          # Core finance calculations
+│   └── telegramLinkService.js     # Token-based account linking
 ├── utils/
-│   ├── promptsV2.js             # AI system prompts (LLM)
-│   └── emailService.js
-└── server.js                    # Entry point
+│   ├── agentPromptV3.js           # AI system prompt builder
+│   ├── agentToolsV3.js            # Tool definitions + executors
+│   ├── chatFormatters.js          # Shared message formatters (DRY)
+│   ├── sqlValidator.js            # SQL security: SELECT-only, table whitelist
+│   └── promptsV2.js               # Shared prompt helpers, ALLOWED_TABLES
+└── server.js                      # Entry point
 ```
 
 ## API Endpoints
@@ -100,6 +108,8 @@ POST /login             Login → set JWT cookie (rate limit: 10/15min)
 POST /refresh-token     Refresh access token
 GET  /me                Get current user info (auth required)
 POST /logout            Logout and clear cookie
+POST /forgot-password   Request OTP for password reset
+POST /reset-password    Reset password with OTP
 ```
 
 ### Wallets — `/api/wallets`
@@ -137,7 +147,7 @@ DELETE /:id             Delete budget
 GET    /                List savings goals
 POST   /                Create savings goal
 GET    /reserved        Get locked balance per wallet
-POST   /:id/deposit     Deposit from a wallet into a goal
+POST   /:id/contribute  Deposit from a wallet into a goal
 POST   /:id/withdraw    Withdraw by contribution ratio per wallet ⚠️
 POST   /:id/disburse    Disburse all funds back to source wallets
 GET    /:id/history     Deposit/withdrawal history
@@ -176,6 +186,14 @@ GET    /sessions                          List chat sessions
 POST   /sessions                          Create new session
 GET    /sessions/:sessionId/messages      Get message history
 POST   /sessions/:sessionId/messages      Send message → AI response
+```
+
+### Telegram — `/api/telegram`
+```
+POST   /link            Generate link token (10 min TTL)
+DELETE /unlink          Unlink Telegram account
+GET    /status          Check if account is linked
+POST   /webhook         Telegram bot webhook (internal)
 ```
 
 ## Key Rules
@@ -222,5 +240,5 @@ The withdrawal logic in `savingModel.js` is complex — users can only withdraw 
 | `JWT_EXPIRE` | Token expiry | No (default: 7d) |
 | `RESEND_API_KEY` | Email service key | Yes |
 | `SENDER_EMAIL` | From email address | Yes |
-| `GROQ_API_KEY` | Groq LLM key | Yes |
-| `GOOGLE_API_KEY` | Gemini API key | Yes |
+| `GEMINI_API_KEY` | Google Generative AI key | Yes |
+| `TELEGRAM_BOT_API` | Telegram bot token | No (disables bot if absent) |

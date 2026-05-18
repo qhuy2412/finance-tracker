@@ -43,12 +43,17 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
         // Gửi tin nhắn đầu tiên — luôn là userMessage
         let result = await chat.sendMessage(userMessage);
 
+        let sessionPendingTxns = [];
+
         for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
             const response = result.response;
             const functionCalls = response.functionCalls();
 
             // ── Không có tool call → AI đã có câu trả lời cuối ────────────────
             if (!functionCalls || functionCalls.length === 0) {
+                if (sessionPendingTxns.length > 0) {
+                    return { type: 'PENDING_TRANSACTION', payload: sessionPendingTxns };
+                }
                 return { type: 'FINAL_ANSWER', payload: response.text().trim() };
             }
 
@@ -63,15 +68,22 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
                     return { type: 'CLARIFICATION', payload: observation.data };
                 }
                 if (observation?.action === SIGNAL_PENDING_TXN) {
-                    return { type: 'PENDING_TRANSACTION', payload: observation.data };
+                    sessionPendingTxns.push(observation.data);
+                    // Báo lại cho AI rằng giao dịch đã được ghi nhận chờ xác nhận
+                    toolResponseParts.push({
+                        functionResponse: {
+                            name: call.name,
+                            response: { status: "SUCCESS", message: "Transaction staged for user confirmation. You can proceed with other operations or provide the final answer." },
+                        }
+                    });
+                } else {
+                    toolResponseParts.push({
+                        functionResponse: {
+                            name: call.name,
+                            response: observation,
+                        }
+                    });
                 }
-
-                toolResponseParts.push({
-                    functionResponse: {
-                        name: call.name,
-                        response: observation,
-                    }
-                });
             }
 
             // ── Gửi observations về cho AI → nhận ngay response tiếp theo ──────
@@ -82,10 +94,16 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
         const lastResponse = result.response;
         const lastCalls = lastResponse.functionCalls();
         if (!lastCalls || lastCalls.length === 0) {
+            if (sessionPendingTxns.length > 0) {
+                return { type: 'PENDING_TRANSACTION', payload: sessionPendingTxns };
+            }
             return { type: 'FINAL_ANSWER', payload: lastResponse.text().trim() };
         }
 
         // AI vẫn muốn gọi thêm tool sau MAX_ITERATIONS → dừng an toàn
+        if (sessionPendingTxns.length > 0) {
+            return { type: 'PENDING_TRANSACTION', payload: sessionPendingTxns };
+        }
         return {
             type: 'ERROR',
             payload: 'Yêu cầu của bạn hơi phức tạp, mình chưa xử lý được ngay lúc này. Bạn thử diễn đạt lại nhé!'

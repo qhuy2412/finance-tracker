@@ -91,14 +91,17 @@ const processChatMessage = async (userId, message, sessionId = null) => {
             } else if (intent === 'CONFIRM') {
                 pendingActions.delete(effectiveSessionId);
                 try {
-                    await financeService.createTransaction(userId, {
-                        wallet_name:      pending.data.wallet_name,
-                        category_name:    pending.data.category_name,
-                        type:             pending.data.type,
-                        amount:           pending.data.amount,
-                        transaction_date: pending.data.date,
-                        note:             pending.data.note || '',
-                    });
+                    const txs = Array.isArray(pending.data) ? pending.data : [pending.data];
+                    for (const tx of txs) {
+                        await financeService.createTransaction(userId, {
+                            wallet_name:      tx.wallet_name,
+                            category_name:    tx.category_name,
+                            type:             tx.type,
+                            amount:           tx.amount,
+                            transaction_date: tx.date,
+                            note:             tx.note || '',
+                        });
+                    }
                     return saveAndReturn('Đã ghi giao dịch thành công nhé! 🎉');
                 } catch (e) {
                     return saveAndReturn(formatTransactionErrorVi(e.message));

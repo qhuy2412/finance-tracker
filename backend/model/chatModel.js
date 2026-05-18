@@ -27,8 +27,10 @@ const Chat = {
         return rows[0]?.user_id || null;
     },
 
-    // Lấy owner + messages trong 1 query — dùng trong handleChat để tránh 2 round-trips
-    // Trả về: { owner: string|null, messages: Array }
+    // Trade-off: both queries run in parallel via Promise.all.
+    // If sessionId is invalid, the messages query wastes 1 DB round-trip returning [].
+    // Accepted: invalid sessionId is rare (~0% of normal traffic); parallel approach
+    // saves latency on the happy path (valid session) which is ~99% of requests.
     getSessionWithMessages: async (sessionId) => {
         const [[sessionRows], [msgRows]] = await Promise.all([
             db.execute(

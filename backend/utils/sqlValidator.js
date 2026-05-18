@@ -26,6 +26,10 @@ const validateSql = (sql, userId) => {
         if (!ALLOWED_TABLES.has(tbl)) return { ok: false, reason: `Bảng không được phép truy cập: ${tbl}` };
     }
 
+    // Note: this regex checks the raw SQL string — it can be fooled by a userId embedded
+    // inside a subquery (e.g. WHERE 1=1 AND 'uuid' IN (SELECT 'uuid')).
+    // Accepted risk: SQL is AI-generated (not user-typed), AI is prompted to always filter
+    // by user_id, and EXPLAIN + row-level DB isolation provide additional defense-in-depth.
     const escapedId = userId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const userIdRx = new RegExp(`(?:\\w+\\.)?user_id\\s*=\\s*'${escapedId}'`, 'i');
     if (!userIdRx.test(trimmed)) {

@@ -37,9 +37,8 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
             systemInstruction: getSystemPrompt(userId, today),
         });
 
-        // Cắt tỉa lịch sử: giữ 7 lượt gần nhất (14 messages) để tiết kiệm token
-        const trimmedHistory = history.slice(-14);
-        const chat = model.startChat({ history: trimmedHistory });
+        // history is already trimmed by the caller (buildGenAIHistory)
+        const chat = model.startChat({ history });
 
         // Gửi tin nhắn đầu tiên — luôn là userMessage
         let result = await chat.sendMessage(userMessage);
@@ -102,4 +101,14 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
     }
 };
 
-module.exports = { runAgentLoop };
+const CONFIRM_KEYWORDS = /^(ok|đồng ý|xác nhận|có|oke|lưu|yes|confirm|uh|ừ|ờ|đúng rồi)\s*[.!]?$/i;
+const CANCEL_KEYWORDS = /^(hủy|không|thôi|bỏ|cancel|no|ko)\s*[.!]?$/i;
+
+const checkConfirmationIntent = async (message) => {
+    const text = message.trim();
+    if (CONFIRM_KEYWORDS.test(text)) return 'CONFIRM';
+    if (CANCEL_KEYWORDS.test(text)) return 'CANCEL';
+    return 'OTHER';
+};
+
+module.exports = { runAgentLoop, checkConfirmationIntent };

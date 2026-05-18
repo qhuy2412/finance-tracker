@@ -16,7 +16,7 @@ export default function ChatWidget() {
 
   const [sessions, setSessions] = useState([]);
   const [currentSessionId, setCurrentSessionId] = useState(null);
-  const [messages, setMessages] = useState([{ role: "assistant", content: WELCOME }]);
+  const [messages, setMessages] = useState([{ id: crypto.randomUUID(), role: "assistant", content: WELCOME }]);
 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,10 +27,10 @@ export default function ChatWidget() {
     if (isOpen) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isOpen]);
 
-  // Load sessions on first open
+  // Load sessions on first open, or when sessions becomes empty (e.g. after new session added)
   useEffect(() => {
     if (isOpen && sessions.length === 0) loadSessions();
-  }, [isOpen]);
+  }, [isOpen, sessions.length]);
 
   async function loadSessions() {
     try {
@@ -49,9 +49,13 @@ export default function ChatWidget() {
     setShowHistory(false);
     try {
       const msgs = await chatService.getMessages(sessionId);
-      setMessages(msgs.length > 0 ? msgs : [{ role: "assistant", content: WELCOME }]);
+      setMessages(
+        msgs.length > 0
+          ? msgs.map(m => ({ ...m, id: crypto.randomUUID() }))
+          : [{ id: crypto.randomUUID(), role: "assistant", content: WELCOME }]
+      );
     } catch {
-      setMessages([{ role: "assistant", content: WELCOME }]);
+      setMessages([{ id: crypto.randomUUID(), role: "assistant", content: WELCOME }]);
     }
   }
 
@@ -59,14 +63,14 @@ export default function ChatWidget() {
     try {
       const { session_id } = await chatService.createSession();
       setCurrentSessionId(session_id);
-      setMessages([{ role: "assistant", content: WELCOME }]);
+      setMessages([{ id: crypto.randomUUID(), role: "assistant", content: WELCOME }]);
       setShowHistory(false);
       setSessions((prev) => [
         { id: session_id, title: "Cuộc trò chuyện mới", updated_at: new Date() },
         ...prev,
       ]);
     } catch {
-      setMessages([{ role: "assistant", content: WELCOME }]);
+      setMessages([{ id: crypto.randomUUID(), role: "assistant", content: WELCOME }]);
     }
   }
 
@@ -74,10 +78,10 @@ export default function ChatWidget() {
     const text = input.trim();
     if (!text || loading) return;
 
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "user", content: text }]);
     setInput("");
     setLoading(true);
-    setMessages((prev) => [...prev, { role: "assistant", content: "..." }]);
+    setMessages((prev) => [...prev, { id: `loading-${Date.now()}`, role: "assistant", content: "..." }]);
 
     try {
       let sessionId = currentSessionId;
@@ -86,7 +90,7 @@ export default function ChatWidget() {
         sessionId = created?.session_id;
         if (sessionId) {
           setCurrentSessionId(sessionId);
-          loadSessions();
+          loadSessions().catch(() => {}); // fire-and-forget, failure is non-critical
         }
       }
 
@@ -102,7 +106,7 @@ export default function ChatWidget() {
 
       setMessages((prev) => [
         ...prev.slice(0, -1),
-        { role: "assistant", content: reply },
+        { id: crypto.randomUUID(), role: "assistant", content: reply },
       ]);
 
       setSessions((prev) =>
@@ -115,7 +119,7 @@ export default function ChatWidget() {
     } catch {
       setMessages((prev) => [
         ...prev.slice(0, -1),
-        { role: "assistant", content: "Xin lỗi, mình gặp sự cố kết nối. Bạn thử lại nhé!" },
+        { id: crypto.randomUUID(), role: "assistant", content: "Xin lỗi, mình gặp sự cố kết nối. Bạn thử lại nhé!" },
       ]);
     } finally {
       setLoading(false);
@@ -206,8 +210,8 @@ export default function ChatWidget() {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-slate-50">
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+            {messages.map((msg) => (
+              <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                 {/* Assistant avatar */}
                 {msg.role === "assistant" && (
                   <div className="h-6 w-6 rounded-full bg-blue-600 flex items-center justify-center mr-2 mt-0.5 flex-shrink-0 shadow-sm shadow-blue-200">
@@ -266,9 +270,10 @@ export default function ChatWidget() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
+              disabled={loading}
               placeholder="Hỏi gì đó..."
               rows={1}
-              className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 text-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-300 placeholder-slate-400 transition-colors"
+              className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 text-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-300 placeholder-slate-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ maxHeight: "80px" }}
             />
             <button

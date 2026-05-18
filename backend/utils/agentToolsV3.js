@@ -103,6 +103,87 @@ const capQueryLimit = (sql) => {
 };
 
 // ─── TOOL EXECUTION LOGIC ─────────────────────────────────────────────────
+const executeGetUserAccountContext = async (userId) => {
+    try {
+        const [wallets, categories] = await Promise.all([
+            Wallet.getAllWalletsByUserId(userId),
+            Category.getAllCategoriesByUserId(userId),
+        ]);
+        return {
+            wallets: wallets.map(w => ({ name: w.name, type: w.type, balance: w.balance })),
+            categories: categories.map(c => ({ name: c.name, type: c.type }))
+        };
+    } catch (err) {
+        return { error: `Lỗi khi lấy context: ${err.message}` };
+    }
+};
+
+const executeQueryDatabase = async (args, userId) => {
+    const { sql } = args;
+
+    // 1. Kiểm tra bảo mật tĩnh (chỉ SELECT, chỉ bảng hợp lệ, bắt buộc user_id)
+    const secCheck = validateSql(sql, userId);
+    if (!secCheck.ok) {
+        return { error: `SQL bị từ chối: ${secCheck.reason}` };
+    }
+
+    // 2. EXPLAIN để bắt lỗi syntax cơ bản của MySQL
+    const explainResult = await validateSqlWithExplain(sql);
+    if (!explainResult.ok) {
+        return { error: `Lỗi SQL: ${explainResult.error}. Hãy kiểm tra lại tên cột, tên bảng, và sửa lại câu SQL.` };
+    }
+
+    // 3. Chạy thực tế với LIMIT hard-cap tối đa 100 dòng
+    try {
+        const finalSql = capQueryLimit(sql);
+        const [rows] = await db.execute(finalSql);
+
+        if (!rows || rows.length === 0) {
+            return { result: "Không có dữ liệu phù hợp." };
+        }
+
+        // Convert chuỗi số (vd: '2000000.00') thành số nguyên
+        const processedRows = rows.map(row => {
+            const obj = {};
+            for (const [k, v] of Object.entries(row)) {
+                obj[k] = (typeof v === 'string' && /^-?\d+\.\d+$/.test(v)) ? Number(v) : v;
+            }
+            return obj;
+        });
+        return { rows: processedRows };
+    } catch (err) {
+        return { error: `Lỗi khi thực thi SQL: ${err.message}. Nếu lỗi liên quan GROUP BY, hãy thêm tất cả cột không-aggregate vào mệnh đề GROUP BY hoặc bọc bằng ANY_VALUE().` };
+    }
+};
+
+const executeProposeTransaction = (args) => {
+    const { wallet_name, category_name, type, amount, date } = args;
+    if (!wallet_name || !category_name) {
+        return { error: 'Tên ví và danh mục không được để trống. Hãy hỏi lại người dùng.' };
+    }
+    if (type !== 'INCOME' && type !== 'EXPENSE') {
+        return { error: `Loại giao dịch không hợp lệ: "${type}". Chỉ chấp nhận INCOME hoặc EXPENSE.` };
+    }
+    if (!amount || Number(amount) <= 0) {
+        return { error: 'Số tiền phải là số dương. Hãy hỏi lại người dùng.' };
+    }
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return { error: `Ngày giao dịch không hợp lệ: "${date}". Định dạng phải là YYYY-MM-DD.` };
+    }
+
+    return {
+        action: "PENDING_TRANSACTION",
+        data: { wallet_name, category_name, type, amount: Number(amount), date, note: args.note || '' },
+    };
+};
+
+const executeAskClarification = (args) => {
+    return {
+        action: "CLARIFICATION_REQUEST",
+        data: args.question,
+    };
+};
+
 /**
  * Thực thi Tool được AI yêu cầu.
  * Kết quả trả về là Object (parsed) để AgentService xử lý tín hiệu đặc biệt
@@ -110,93 +191,14 @@ const capQueryLimit = (sql) => {
  */
 const executeTool = async (name, args, userId) => {
     switch (name) {
-        case 'get_user_account_context': {
-            try {
-                const [wallets, categories] = await Promise.all([
-                    Wallet.getAllWalletsByUserId(userId),
-                    Category.getAllCategoriesByUserId(userId),
-                ]);
-                return {
-                    wallets: wallets.map(w => ({ name: w.name, type: w.type, balance: w.balance })),
-                    categories: categories.map(c => ({ name: c.name, type: c.type }))
-                };
-            } catch (err) {
-                return { error: `Lỗi khi lấy context: ${err.message}` };
-            }
-        }
-
-        case 'query_database': {
-            const { sql } = args;
-
-            // 1. Kiểm tra bảo mật tĩnh (chỉ SELECT, chỉ bảng hợp lệ, bắt buộc user_id)
-            const secCheck = validateSql(sql, userId);
-            if (!secCheck.ok) {
-                return { error: `SQL bị từ chối: ${secCheck.reason}` };
-            }
-
-            // 2. EXPLAIN để bắt lỗi syntax cơ bản của MySQL (column không tồn tại, sai JOIN...)
-            // Lưu ý: EXPLAIN không bắt được ONLY_FULL_GROUP_BY — lỗi đó chỉ xuất hiện khi chạy thật.
-            // Nếu thực thi bị lỗi GROUP BY, error sẽ được trả về ở bước 3 để AI tự sửa.
-            const explainResult = await validateSqlWithExplain(sql);
-            if (!explainResult.ok) {
-                return { error: `Lỗi SQL: ${explainResult.error}. Hãy kiểm tra lại tên cột, tên bảng, và sửa lại câu SQL.` };
-            }
-
-            // 3. Chạy thực tế với LIMIT hard-cap tối đa 100 dòng (Fix #4)
-            try {
-                const finalSql = capQueryLimit(sql);
-                const [rows] = await db.execute(finalSql);
-
-                if (!rows || rows.length === 0) {
-                    return { result: "Không có dữ liệu phù hợp." };
-                }
-
-                // Convert chuỗi số (vd: '2000000.00') thành số nguyên để LLM không bị ảo giác
-                const processedRows = rows.map(row => {
-                    const obj = {};
-                    for (const [k, v] of Object.entries(row)) {
-                        obj[k] = (typeof v === 'string' && /^-?\d+\.\d+$/.test(v)) ? Number(v) : v;
-                    }
-                    return obj;
-                });
-                return { rows: processedRows };
-            } catch (err) {
-                // Bắt lỗi ONLY_FULL_GROUP_BY tại đây và trả về cho AI tự sửa
-                return { error: `Lỗi khi thực thi SQL: ${err.message}. Nếu lỗi liên quan GROUP BY, hãy thêm tất cả cột không-aggregate vào mệnh đề GROUP BY hoặc bọc bằng ANY_VALUE().` };
-            }
-        }
-
-        case 'propose_transaction': {
-            // Fix #3: Validate args trước khi chấp nhận đề xuất
-            const { wallet_name, category_name, type, amount, date } = args;
-            if (!wallet_name || !category_name) {
-                return { error: 'Tên ví và danh mục không được để trống. Hãy hỏi lại người dùng.' };
-            }
-            if (type !== 'INCOME' && type !== 'EXPENSE') {
-                return { error: `Loại giao dịch không hợp lệ: "${type}". Chỉ chấp nhận INCOME hoặc EXPENSE.` };
-            }
-            if (!amount || Number(amount) <= 0) {
-                return { error: 'Số tiền phải là số dương. Hãy hỏi lại người dùng.' };
-            }
-            if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-                return { error: `Ngày giao dịch không hợp lệ: "${date}". Định dạng phải là YYYY-MM-DD.` };
-            }
-
-            // Tín hiệu đặc biệt: AgentService sẽ bắt action này và ngắt vòng lặp
-            return {
-                action: "PENDING_TRANSACTION",
-                data: { wallet_name, category_name, type, amount: Number(amount), date, note: args.note || '' },
-            };
-        }
-
-        case 'ask_user_clarification': {
-            // Tín hiệu đặc biệt: AgentService sẽ bắt action này và ngắt vòng lặp
-            return {
-                action: "CLARIFICATION_REQUEST",
-                data: args.question,
-            };
-        }
-
+        case 'get_user_account_context':
+            return await executeGetUserAccountContext(userId);
+        case 'query_database':
+            return await executeQueryDatabase(args, userId);
+        case 'propose_transaction':
+            return executeProposeTransaction(args);
+        case 'ask_user_clarification':
+            return executeAskClarification(args);
         default:
             return { error: `Tool "${name}" không tồn tại. Các tool hợp lệ: get_user_account_context, query_database, propose_transaction, ask_user_clarification.` };
     }

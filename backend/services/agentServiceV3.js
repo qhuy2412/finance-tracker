@@ -10,18 +10,18 @@ const SIGNAL_CLARIFICATION = 'CLARIFICATION_REQUEST';
 const SIGNAL_PENDING_TXN = 'PENDING_TRANSACTION';
 
 /**
- * Chạy vòng lặp Agentic ReAct (Google GenAI SDK):
+ * Run Agentic ReAct loop (Google GenAI SDK):
  *
- * Luồng:
- *   1. sendMessage(userMessage)        → response có thể có functionCalls
- *   2. Thực thi tools → thu thập observations
- *   3. sendMessage(toolResponseParts)  → response tiếp theo
- *   4. Lặp lại từ bước 2 nếu có thêm functionCalls
- *   5. Khi response không còn functionCalls → đó là FINAL_ANSWER
+ * Flow:
+ *   1. sendMessage(userMessage)        → response may contain functionCalls
+ *   2. Execute tools → gather observations
+ *   3. sendMessage(toolResponseParts)  → next response
+ *   4. Repeat from step 2 if there are more functionCalls
+ *   5. When response has no functionCalls → it is a FINAL_ANSWER
  *
- * @param {string} userId       - ID người dùng từ JWT middleware
- * @param {string} userMessage  - Tin nhắn hiện tại của người dùng
- * @param {Array}  history      - Lịch sử chat (đã được cắt tỉa bên ngoài)
+ * @param {string} userId       - User ID from JWT middleware
+ * @param {string} userMessage  - Current user message
+ * @param {Array}  history      - Chat history (already trimmed externally)
  * @returns {Promise<{type: string, payload: any}>}
  */
 const runAgentLoop = async (userId, userMessage, history = []) => {
@@ -40,7 +40,7 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
         // history is already trimmed by the caller (buildGenAIHistory)
         const chat = model.startChat({ history });
 
-        // Gửi tin nhắn đầu tiên — luôn là userMessage
+        // Send first message — always the userMessage
         let result = await chat.sendMessage(userMessage);
 
         let sessionPendingTxns = [];
@@ -49,7 +49,7 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
             const response = result.response;
             const functionCalls = response.functionCalls();
 
-            // ── Không có tool call → AI đã có câu trả lời cuối ────────────────
+            // ── No tool calls → AI has the final answer ────────────────
             if (!functionCalls || functionCalls.length === 0) {
                 if (sessionPendingTxns.length > 0) {
                     return { type: 'PENDING_TRANSACTION', payload: sessionPendingTxns };
@@ -57,19 +57,19 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
                 return { type: 'FINAL_ANSWER', payload: response.text().trim() };
             }
 
-            // ── Thực thi tất cả tool được yêu cầu trong lượt này ───────────────
+            // ── Execute all tools requested in this turn ───────────────
             const toolResponseParts = [];
 
             for (const call of functionCalls) {
                 const observation = await executeTool(call.name, call.args, userId);
 
-                // Bắt tín hiệu đặc biệt → ngắt vòng lặp ngay, không gọi AI thêm
+                // Catch special signals → interrupt loop immediately, do not call AI further
                 if (observation?.action === SIGNAL_CLARIFICATION) {
                     return { type: 'CLARIFICATION', payload: observation.data };
                 }
                 if (observation?.action === SIGNAL_PENDING_TXN) {
                     sessionPendingTxns.push(observation.data);
-                    // Báo lại cho AI rằng giao dịch đã được ghi nhận chờ xác nhận
+                    // Report back to AI that transaction is staged and waiting for confirmation
                     toolResponseParts.push({
                         functionResponse: {
                             name: call.name,
@@ -86,11 +86,11 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
                 }
             }
 
-            // ── Gửi observations về cho AI → nhận ngay response tiếp theo ──────
+            // ── Send observations back to AI → get the next response immediately ──────
             result = await chat.sendMessage(toolResponseParts);
         }
 
-        // Kiểm tra response cuối sau khi for loop kết thúc
+        // Check final response after the for loop ends
         const lastResponse = result.response;
         const lastCalls = lastResponse.functionCalls();
         if (!lastCalls || lastCalls.length === 0) {
@@ -100,7 +100,7 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
             return { type: 'FINAL_ANSWER', payload: lastResponse.text().trim() };
         }
 
-        // AI vẫn muốn gọi thêm tool sau MAX_ITERATIONS → dừng an toàn
+        // AI still wants to call tools after MAX_ITERATIONS → safe exit
         if (sessionPendingTxns.length > 0) {
             return { type: 'PENDING_TRANSACTION', payload: sessionPendingTxns };
         }
@@ -110,7 +110,7 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
         };
 
     } catch (err) {
-        // Bắt mọi lỗi ngoài dự kiến (API timeout, network, parse error...)
+        // Catch all unexpected errors (API timeout, network, parse error...)
         console.error('[AgentV3] Error:', err);
         return {
             type: 'ERROR',

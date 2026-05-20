@@ -2,7 +2,7 @@ const db = require('../config/db');
 const Wallet = require('../model/walletModel');
 const Category = require('../model/categoryModel');
 
-// Fix #1: Import từ sqlValidator.js — nguồn duy nhất cho cả V2 lẫn V3
+// Fix #1: Import from sqlValidator.js — single source of truth for both V2 and V3
 const { validateSql, validateSqlWithExplain } = require('./sqlValidator');
 
 const MAX_QUERY_ROWS = 100;
@@ -64,9 +64,9 @@ const toolDeclarations = [
     }
 ];
 
-// ─── HELPER: Ép LIMIT tối đa MAX_QUERY_ROWS ───────────────────────────────
-// Fix #4: Thay vì chỉ thêm LIMIT khi chưa có, phải override mọi LIMIT > 100
-// để tránh trường hợp AI tự ghi "LIMIT 5000" qua kiểm tra.
+// ─── HELPER: Force LIMIT at most MAX_QUERY_ROWS ───────────────────────────────
+// Fix #4: Instead of only adding LIMIT when missing, override any LIMIT > 100
+// to prevent AI from passing checks with "LIMIT 5000".
 const capQueryLimit = (sql) => {
     // Tách riêng 3 trường hợp syntax của LIMIT trong MySQL
     const offsetSyntaxRx = /\bLIMIT\s+(\d+)\s+OFFSET\s+(\d+)\b/i;
@@ -78,7 +78,7 @@ const capQueryLimit = (sql) => {
         let rowCount = parseInt(match[1], 10);
         let offset = parseInt(match[2], 10);
         rowCount = Math.min(rowCount, MAX_QUERY_ROWS);
-        if (offset > 1000) offset = 1000; // Ngăn offset quá lớn
+        if (offset > 1000) offset = 1000; // Prevent extremely large offset
         return sql.replace(offsetSyntaxRx, `LIMIT ${rowCount} OFFSET ${offset}`);
     }
 
@@ -87,7 +87,7 @@ const capQueryLimit = (sql) => {
         let offset = parseInt(match[1], 10);
         let rowCount = parseInt(match[2], 10);
         rowCount = Math.min(rowCount, MAX_QUERY_ROWS);
-        if (offset > 1000) offset = 1000; // Ngăn offset quá lớn
+        if (offset > 1000) offset = 1000; // Prevent extremely large offset
         return sql.replace(commaSyntaxRx, `LIMIT ${offset}, ${rowCount}`);
     }
 
@@ -98,7 +98,7 @@ const capQueryLimit = (sql) => {
         return sql.replace(simpleSyntaxRx, `LIMIT ${rowCount}`);
     }
 
-    // Không có LIMIT → thêm vào cuối
+    // No LIMIT -> append at the end
     return `${sql} LIMIT ${MAX_QUERY_ROWS}`;
 };
 
@@ -121,19 +121,19 @@ const executeGetUserAccountContext = async (userId) => {
 const executeQueryDatabase = async (args, userId) => {
     const { sql } = args;
 
-    // 1. Kiểm tra bảo mật tĩnh (chỉ SELECT, chỉ bảng hợp lệ, bắt buộc user_id)
+    // 1. Static security check (SELECT only, valid tables, required user_id)
     const secCheck = validateSql(sql, userId);
     if (!secCheck.ok) {
         return { error: `SQL bị từ chối: ${secCheck.reason}` };
     }
 
-    // 2. EXPLAIN để bắt lỗi syntax cơ bản của MySQL
+    // 2. EXPLAIN to catch basic MySQL syntax errors
     const explainResult = await validateSqlWithExplain(sql);
     if (!explainResult.ok) {
         return { error: `Lỗi SQL: ${explainResult.error}. Hãy kiểm tra lại tên cột, tên bảng, và sửa lại câu SQL.` };
     }
 
-    // 3. Chạy thực tế với LIMIT hard-cap tối đa 100 dòng
+    // 3. Execute query with a hard limit of 100 rows
     try {
         const finalSql = capQueryLimit(sql);
         const [rows] = await db.execute(finalSql);
@@ -142,7 +142,7 @@ const executeQueryDatabase = async (args, userId) => {
             return { result: "Không có dữ liệu phù hợp." };
         }
 
-        // Convert chuỗi số (vd: '2000000.00') thành số nguyên
+        // Convert numeric strings (e.g. '2000000.00') to numbers
         const processedRows = rows.map(row => {
             const obj = {};
             for (const [k, v] of Object.entries(row)) {
@@ -185,9 +185,9 @@ const executeAskClarification = (args) => {
 };
 
 /**
- * Thực thi Tool được AI yêu cầu.
- * Kết quả trả về là Object (parsed) để AgentService xử lý tín hiệu đặc biệt
- * rồi mới JSON.stringify trả về cho LLM như Observation.
+ * Execute tool requested by AI.
+ * Returns parsed object so AgentService can handle special signals
+ * before it is JSON.stringified and sent back to LLM as Observation.
  */
 const executeTool = async (name, args, userId) => {
     switch (name) {

@@ -140,7 +140,7 @@ const handleFreeTextMessage = async (msg) => {
 };
 
 /**
- * Initialize and start the Telegram bot with polling.
+ * Initialize and start the Telegram bot (Webhook or Polling mode).
  * Called once when the server starts.
  */
 const initTelegramBot = () => {
@@ -149,22 +149,66 @@ const initTelegramBot = () => {
         return;
     }
 
-    bot = new TelegramBot(token, { polling: true });
-    console.log('[Telegram] Bot started with polling.');
+    const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
+    const isWebhookEnabled = webhookUrl && 
+                             webhookUrl !== 'undefined' && 
+                             webhookUrl !== 'null' && 
+                             webhookUrl.trim() !== '';
 
+    console.log('[Telegram] Starting bot initialization...');
+    console.log(`[Telegram] Detected NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`[Telegram] Detected PM2 instance: ${process.env.NODE_APP_INSTANCE}`);
+    console.log(`[Telegram] TELEGRAM_WEBHOOK_URL configured: "${webhookUrl}" (Parsed as enabled: ${!!isWebhookEnabled})`);
+
+    if (isWebhookEnabled) {
+        // Webhook mode: do not poll, register webhook URL
+        bot = new TelegramBot(token);
+        bot.setWebHook(webhookUrl)
+            .then(() => console.log(`[Telegram] Bot configured with Webhook: ${webhookUrl}`))
+            .catch(err => console.error('[Telegram] Webhook setup failed:', err.message));
+    } else {
+        // Polling mode (only on the primary instance if using PM2 cluster mode)
+        const isPrimaryInstance = process.env.NODE_APP_INSTANCE === undefined || process.env.NODE_APP_INSTANCE === '0';
+        if (!isPrimaryInstance) {
+            console.log(`[Telegram] Polling skipped on PM2 worker ${process.env.NODE_APP_INSTANCE} to prevent conflicts.`);
+            return;
+        }
+
+        bot = new TelegramBot(token, { polling: true });
+        console.log('[Telegram] Bot started with polling.');
+
+        bot.on('polling_error', (err) => {
+            console.error('[Telegram] Polling error:', err.message);
+        });
+    }
+
+    // Register handlers (used for both webhook and polling modes)
     bot.onText(/\/start/, handleStartCommand);
     bot.onText(/\/help/, handleHelpCommand);
     bot.onText(/\/link\s+(\S+)/, handleLinkCommand);
     bot.onText(/\/unlink/, handleUnlinkCommand);
     bot.onText(/\/newsession/, handleNewSessionCommand);
     bot.on('message', handleFreeTextMessage);
-
-    bot.on('polling_error', (err) => {
-        console.error('[Telegram] Polling error:', err.message);
-    });
 };
 
 // ─── HTTP API handlers ──────────────────────────────────────────────────────
+
+/**
+ * POST /api/telegram/webhook
+ * Receives updates from Telegram in webhook mode.
+ */
+const handleWebhook = (req, res) => {
+    if (!bot) {
+        return res.status(500).json({ message: 'Bot not initialized.' });
+    }
+    try {
+        bot.processUpdate(req.body);
+        return res.sendStatus(200);
+    } catch (e) {
+        console.error('[Telegram Webhook Error]', e);
+        return res.status(500).json({ message: 'Error processing update.' });
+    }
+};
 
 /**
  * POST /api/telegram/generate-link-token
@@ -208,4 +252,4 @@ const unlinkAccount = async (req, res) => {
     }
 };
 
-module.exports = { initTelegramBot, generateLinkToken, getLinkStatus, unlinkAccount };
+module.exports = { initTelegramBot, generateLinkToken, getLinkStatus, unlinkAccount, handleWebhook };

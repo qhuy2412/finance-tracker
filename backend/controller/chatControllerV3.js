@@ -30,7 +30,7 @@ const handleChatV3 = async (req, res) => {
     }
 };
 
-// ─── Session endpoints (dùng chung với V2) ────────────────────────────────
+// ─── Session endpoints (Shared with V2) ────────────────────────────────
 const getSessions = async (req, res) => {
     try {
         return res.json(await Chat.getSessionList(req.user.id));
@@ -56,7 +56,7 @@ const getMessages = async (req, res) => {
         const userId = req.user.id;
         const { sessionId } = req.params;
 
-        // Validate ownership trước khi trả messages — chặn IDOR
+        // Validate ownership before returning messages — prevent IDOR
         const owner = await Chat.getSessionOwner(sessionId);
         if (!owner) return res.status(404).json({ error: 'Session not found' });
         if (owner !== userId) return res.status(403).json({ error: 'Forbidden' });

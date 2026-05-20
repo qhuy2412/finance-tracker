@@ -55,7 +55,7 @@ trigger: always_on
   displayIndex = index + 1;
   ```
 - Use `// TODO:` prefix when noting a known issue or tech debt.
-
+- Comment by English
 ## Forbidden Patterns
 - No `console.log` in committed code — remove after debugging.
 - No hardcoded URLs, secrets, or credentials — use environment variables.

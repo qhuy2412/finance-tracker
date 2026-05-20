@@ -1,3 +1,5 @@
+// Disable verbose logging and tips from dotenv v17 (dotenvx)
+process.env.DOTENV_LOG_LEVEL = 'none';
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");

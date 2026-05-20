@@ -155,11 +155,6 @@ const initTelegramBot = () => {
                              webhookUrl !== 'null' && 
                              webhookUrl.trim() !== '';
 
-    console.log('[Telegram] Starting bot initialization...');
-    console.log(`[Telegram] Detected NODE_ENV: ${process.env.NODE_ENV}`);
-    console.log(`[Telegram] Detected PM2 instance: ${process.env.NODE_APP_INSTANCE}`);
-    console.log(`[Telegram] TELEGRAM_WEBHOOK_URL configured: "${webhookUrl}" (Parsed as enabled: ${!!isWebhookEnabled})`);
-
     if (isWebhookEnabled) {
         // Webhook mode: do not poll, register webhook URL
         bot = new TelegramBot(token);

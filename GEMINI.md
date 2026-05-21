@@ -23,7 +23,7 @@
 ### Frontend
 - Framework: **React 19** (Vite)
 - Styling: **Tailwind CSS v4** + shadcn/ui (Base UI)
-- State management: **Zustand** (`src/store/`)
+- State management: **React Context API** (`src/store/`)
 - HTTP client: **Axios** (`src/services/`)
 - UI components: `lucide-react`, `recharts`, `react-toastify`
 - Package manager: npm
@@ -56,7 +56,7 @@ FinTra/
 │   │   ├── components/     # Shared UI components (shadcn/ui based)
 │   │   ├── pages/          # Route-level pages
 │   │   ├── services/       # Axios API calls
-│   │   ├── store/          # Zustand stores
+│   │   ├── store/          # React Context (AuthContext)
 │   │   ├── utils/          # Helpers, formatters
 │   │   ├── lib/            # clsx, tailwind-merge utils
 │   │   ├── App.jsx         # Router setup (react-router-dom v7)

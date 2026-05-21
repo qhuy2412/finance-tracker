@@ -171,12 +171,7 @@ const disburseSaving = async (req, res) => {
             await connection.beginTransaction();
 
             for (const { wallet_id, net_amount } of contributions) {
-                // Cộng tiền về ví
-                await connection.execute(
-                    'UPDATE wallets SET balance = balance + ? WHERE id = ? AND user_id = ?',
-                    [net_amount, wallet_id, userId]
-                );
-                // Ghi lịch sử WITHDRAW cho từng ví
+                // Ghi lịch sử WITHDRAW cho từng ví để triệt tiêu số tiền đóng góp
                 await connection.execute(
                     `INSERT INTO saving_transactions (id, saving_id, wallet_id, type, amount, note)
                      VALUES (?, ?, ?, 'WITHDRAW', ?, ?)`,

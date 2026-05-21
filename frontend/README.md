@@ -6,7 +6,7 @@ React 19 frontend for the FinTra personal finance management app. Built with Vit
 
 - **Framework**: React 19 + Vite 8
 - **Styling**: Tailwind CSS v4 + shadcn/ui (Base UI)
-- **State**: Zustand (`src/store/`)
+- **State**: React Context API (`src/store/`)
 - **HTTP**: Axios via `src/services/api.js`
 - **Charts**: Recharts
 - **Routing**: react-router-dom v7
@@ -63,7 +63,7 @@ frontend/src/
 │   ├── dashboard.service.js
 │   ├── chat.service.js
 │   └── telegram.service.js
-├── store/               # Zustand stores
+├── store/               # Auth Context (React Context API)
 ├── utils/               # Helpers, formatters
 ├── lib/                 # cn() utility (clsx + tailwind-merge)
 ├── App.jsx              # Router setup
@@ -112,7 +112,7 @@ const handleSubmit = async () => {
 
 | State type | Use |
 |---|---|
-| Cross-page / shared data | Zustand store |
+| Cross-page / shared data | React Context (AuthContext) |
 | Local component UI state | `useState` |
 | Derived from props | Compute inline — no state needed |
 

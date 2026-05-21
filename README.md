@@ -99,7 +99,7 @@ FinTra/
 │       ├── components/ # Shared UI components
 │       ├── pages/      # Route-level page components
 │       ├── services/   # Axios API wrappers
-│       ├── store/      # Zustand state management
+│       ├── store/      # React Context state management
 │       └── utils/      # Helpers
 ├── tests/              # Integration & exploratory tests (PinchTab)
 ├── .agents/            # AI agent workspace rules & workflows
@@ -135,7 +135,7 @@ FinTra/
 ### Frontend
 - **React 19** + Vite 8
 - **Tailwind CSS v4** + shadcn/ui (Base UI)
-- **Zustand** — state management
+- **React Context API** — state management
 - **Axios** — HTTP client
 - **Recharts** — data visualization
 - **react-router-dom v7** — routing

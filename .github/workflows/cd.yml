@@ -41,8 +41,6 @@ jobs:
             
             # 2. Write the docker-compose.prod.yml content dynamically to the server
             cat << 'EOF' > /var/www/fintra/docker-compose.yml
-            version: '3.8'
-            
             services:
               backend:
                 image: ghcr.io/${{ steps.prep.outputs.owner_lower }}/${{ steps.prep.outputs.name_lower }}-backend:latest

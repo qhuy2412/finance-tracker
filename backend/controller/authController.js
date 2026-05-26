@@ -18,8 +18,9 @@ const initEmailVerificationsTable = async () => {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
-};
-initEmailVerificationsTable().catch(console.error);
+// Bảng email_verifications đã được khởi tạo tự động qua migration (schema.sql) lúc startup.
+// Không tự động chạy ở đây để tránh Race Condition khi database chưa tạo xong.
+// initEmailVerificationsTable().catch(console.error);
 
 const register = async (req, res) => {
     try {

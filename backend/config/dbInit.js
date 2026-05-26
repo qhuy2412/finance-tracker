@@ -19,11 +19,20 @@ const initDatabase = async () => {
         // Read the schema.sql file content
         const schemaSql = fs.readFileSync(schemaPath, 'utf8');
 
-        // Split queries by semicolon ';', clean whitespaces, and ignore empty/comment lines
+        // Split queries by semicolon ';', strip leading comment lines from each block,
+        // then filter out empty results. This prevents CREATE TABLE blocks that are
+        // preceded by '--' comment lines from being accidentally filtered out.
         const queries = schemaSql
             .split(';')
-            .map(query => query.trim())
-            .filter(query => query.length > 0 && !query.startsWith('--') && !query.startsWith('/*'));
+            .map(block => {
+                // Remove all leading comment lines from each SQL block
+                return block
+                    .split('\n')
+                    .filter(line => !line.trim().startsWith('--'))
+                    .join('\n')
+                    .trim();
+            })
+            .filter(query => query.length > 0);
 
         const connection = await db.getConnection();
         try {

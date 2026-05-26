@@ -21,6 +21,7 @@ const telegramRoute = require("./router/telegramRoute");
 const { initTelegramBot } = require("./controller/telegramController");
 
 const db = require("./config/db");
+const initDatabase = require("./config/dbInit");
 const app = express();
 
 app.use(express.json({ limit: '10mb' }));
@@ -57,9 +58,18 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 9999;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    initTelegramBot();
-});
+
+// Run automatic database schema migration, then start the server
+initDatabase()
+    .then(() => {
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+            initTelegramBot();
+        });
+    })
+    .catch((err) => {
+        console.error('Fatal error during database migration. Application cannot start:', err);
+        process.exit(1);
+    });
 
 module.exports = app;

@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # 1. Backend Service (Express Node.js API)
+  backend:
+    image: ghcr.io/${GITHUB_REPOSITORY}-backend:latest
+    container_name: fintra_backend_prod
+    restart: always
+    ports:
+      - "9999:9999"
+    # Load all environment variables securely from the host VM's local env file
+    env_file:
+      - /var/www/fintra/.env
+    environment:
+      - PORT=9999
+      - NODE_ENV=production
+      # Point to host-gateway to connect to ProxySQL running on VM host OS (port 6033)
+      - DB_HOST=host.docker.internal
+      - DB_PORT=6033
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # 2. Frontend Service (React + Nginx static server)
+  frontend:
+    image: ghcr.io/${GITHUB_REPOSITORY}-frontend:latest
+    container_name: fintra_frontend_prod
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

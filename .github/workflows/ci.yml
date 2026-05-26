@@ -6,34 +6,86 @@ on:
   pull_request:
     branches: [ main ]
 
+# Grant permissions to write Docker images to GitHub Container Registry (GHCR)
+permissions:
+  contents: read
+  packages: write
+
 jobs:
-  build-and-lint:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # ── 1. VALIDATE AND LINT LOCAL CODE ────────────────────────────────────
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # or 22, let's stick to 20 as safe default
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
 
       - name: Install Frontend Dependencies
         working-directory: ./frontend
-        run: npm install
+        run: npm ci
 
-      - name: Build Frontend
+      - name: Build Frontend Local Check
         working-directory: ./frontend
         run: npm run build
 
-      - name: Upload Frontend Artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist/
-          retention-days: 1
-
       - name: Install Backend Dependencies
         working-directory: ./backend
-        run: npm install
+        run: npm ci
+
+      # ── 2. DOCKER BUILD & PUSH TO GHCR (ONLY ON PUSH TO MAIN) ──────────────
+      - name: Set up Docker Buildx
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Convert Repository Owner to Lowercase (Required for Docker image tags)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: prep
+        run: |
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[A-Z]' '[a-z]')
+          REPO_NAME=$(echo "${{ github.event.repository.name }}" | tr '[A-Z]' '[a-z]')
+          echo "image_backend=ghcr.io/${REPO_OWNER}/${REPO_NAME}-backend" >> $GITHUB_OUTPUT
+          echo "image_frontend=ghcr.io/${REPO_OWNER}/${REPO_NAME}-frontend" >> $GITHUB_OUTPUT
+
+      - name: Build and Push Backend Image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.prep.outputs.image_backend }}:latest
+            ${{ steps.prep.outputs.image_backend }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and Push Frontend Image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          build-args: |
+            VITE_API_URL=/api
+          push: true
+          tags: |
+            ${{ steps.prep.outputs.image_frontend }}:latest
+            ${{ steps.prep.outputs.image_frontend }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

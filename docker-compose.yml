@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # 1. Database Service (MySQL 8.0)
+  db:
+    image: mysql:8.0
+    container_name: fintra_db_local
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: fintra_root_password
+      MYSQL_DATABASE: fintra_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Mount the schema.sql directly from backend config to avoid duplicate files
+      - ./backend/config/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p", "fintra_root_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Backend Service (Node.js API)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fintra_backend_local
+    restart: always
+    ports:
+      - "9999:9999"
+    environment:
+      - PORT=9999
+      - NODE_ENV=development
+      - DB_HOST=db
+      - DB_USER=root
+      # DB_PASS matches pool config in backend/config/db.js
+      - DB_PASS=fintra_root_password
+      - DB_NAME=fintra_db
+      - DB_PORT=3306
+      # Standard production JWT secret variables from backend codebase
+      - JWT_SECRET_KEY=demo_jwt_secret_key_12345
+      - JWT_TOKEN_SECRET=demo_jwt_token_secret_12345
+      - RESEND_API_KEY=re_demo_key
+      - SENDER_EMAIL=noreply@fintra.app
+      - GEMINI_API_KEY=demo_gemini_key
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # 3. Frontend Service (React + Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:9999
+    container_name: fintra_frontend_local
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:

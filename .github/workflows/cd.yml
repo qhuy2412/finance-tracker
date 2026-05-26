@@ -11,46 +11,97 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Run only if the CI pipeline completed successfully
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - name: Download Frontend Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend-dist
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: SCP Frontend Build to Server
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.VM1_IP }},${{ secrets.VM2_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          source: "frontend-dist"
-          target: "/tmp"
+      - name: Convert Repository Owner & Name to Lowercase
+        id: prep
+        run: |
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[A-Z]' '[a-z]')
+          REPO_NAME=$(echo "${{ github.event.repository.name }}" | tr '[A-Z]' '[a-z]')
+          echo "owner_lower=${REPO_OWNER}" >> $GITHUB_OUTPUT
+          echo "name_lower=${REPO_NAME}" >> $GITHUB_OUTPUT
 
-      - name: Deploy & Build on Server
+      - name: Deploy to VM1 & VM2 (Active-Active App Nodes) via SSH
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.VM1_IP }},${{ secrets.VM2_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          # We pass variables to the SSH script
+          envs: REPO_OWNER_LOWER,REPO_NAME_LOWER
           script: |
-            cd /var/www/fintra/finance-tracker
-            git pull origin main
-
-            rm -rf frontend/dist
-            mkdir -p frontend/dist
-            sudo cp -r /tmp/frontend-dist/* frontend/dist/
-            rm -rf /tmp/frontend-dist
-
-            cd backend
-            npm install
-            pm2 delete fintra-api || true
-            pm2 start server.js --name fintra-api
-
-            sudo chown -R www-data:www-data frontend/dist/
-            sudo systemctl reload nginx
+            # 1. Prepare application directory
+            sudo mkdir -p /var/www/fintra
+            sudo chown -R $USER:$USER /var/www/fintra
+            
+            # 2. Write the docker-compose.prod.yml content dynamically to the server
+            cat << 'EOF' > /var/www/fintra/docker-compose.yml
+            version: '3.8'
+            
+            services:
+              backend:
+                image: ghcr.io/${{ steps.prep.outputs.owner_lower }}/${{ steps.prep.outputs.name_lower }}-backend:latest
+                container_name: fintra_backend_prod
+                restart: always
+                ports:
+                  - "9999:9999"
+                env_file:
+                  - /var/www/fintra/.env
+                environment:
+                  - PORT=9999
+                  - NODE_ENV=production
+                  - DB_HOST=host.docker.internal
+                  - DB_PORT=6033
+                extra_hosts:
+                  - "host.docker.internal:host-gateway"
+                logging:
+                  driver: "json-file"
+                  options:
+                    max-size: "10m"
+                    max-file: "3"
+            
+              frontend:
+                image: ghcr.io/${{ steps.prep.outputs.owner_lower }}/${{ steps.prep.outputs.name_lower }}-frontend:latest
+                container_name: fintra_frontend_prod
+                restart: always
+                ports:
+                  - "80:80"
+                depends_on:
+                  - backend
+                logging:
+                  driver: "json-file"
+                  options:
+                    max-size: "10m"
+                    max-file: "3"
+            EOF
+            
+            # 3. Create a template .env file if it doesn't exist yet
+            if [ ! -f /var/www/fintra/.env ]; then
+              echo "Creating template /var/www/fintra/.env file. Please fill in actual keys on the VM host!"
+              cat << 'ENV_EOF' > /var/www/fintra/.env
+            JWT_SECRET_KEY=generate_a_secure_random_key_here
+            JWT_TOKEN_SECRET=generate_another_secure_key_here
+            RESEND_API_KEY=your_resend_api_key
+            SENDER_EMAIL=noreply@fintra.app
+            GEMINI_API_KEY=your_google_generative_ai_key
+            TELEGRAM_BOT_API=your_telegram_bot_token_optional
+            ENV_EOF
+            fi
+            
+            # 4. Authenticate Docker with GHCR on the target VM
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # 5. Pull latest images and restart containers
+            cd /var/www/fintra
+            docker compose pull
+            docker compose up -d
+            
+            # 6. Clean up unused/dangling Docker images to save space
+            docker image prune -f
+            
+            echo "Deployment completed successfully on App Node!"

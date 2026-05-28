@@ -24,6 +24,9 @@ const db = require("./config/db");
 const initDatabase = require("./config/dbInit");
 const app = express();
 
+// Trust reverse proxy (Cloudflare Tunnel / Nginx) to extract real client IP in rate-limiters
+app.set('trust proxy', 1);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan("dev"));
 app.use(cookieParser());

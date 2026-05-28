@@ -144,8 +144,13 @@ const handleFreeTextMessage = async (msg) => {
  * Called once when the server starts.
  */
 const initTelegramBot = () => {
+    if (bot) {
+        console.log(`[Telegram] Bot already initialized on process ${process.pid}. Skipping re-initialization.`);
+        return;
+    }
+
     if (!token) {
-        console.warn('[Telegram] TELEGRAM_BOT_API not set — bot will not start.');
+        console.warn(`[Telegram] TELEGRAM_BOT_API not set on process ${process.pid} — bot will not start.`);
         return;
     }
 
@@ -159,23 +164,41 @@ const initTelegramBot = () => {
         // Webhook mode: do not poll, register webhook URL
         bot = new TelegramBot(token);
         bot.setWebHook(webhookUrl)
-            .then(() => console.log(`[Telegram] Bot configured with Webhook: ${webhookUrl}`))
-            .catch(err => console.error('[Telegram] Webhook setup failed:', err.message));
+            .then(() => console.log(`[Telegram] Bot configured with Webhook (Process ${process.pid}): ${webhookUrl}`))
+            .catch(err => console.error(`[Telegram] Webhook setup failed (Process ${process.pid}):`, err.message));
     } else {
         // Polling mode (only on the primary instance if using PM2 cluster mode)
         const isPrimaryInstance = process.env.NODE_APP_INSTANCE === undefined || process.env.NODE_APP_INSTANCE === '0';
         if (!isPrimaryInstance) {
-            console.log(`[Telegram] Polling skipped on PM2 worker ${process.env.NODE_APP_INSTANCE} to prevent conflicts.`);
+            console.log(`[Telegram] Polling skipped on PM2 worker ${process.env.NODE_APP_INSTANCE} (Process ${process.pid}) to prevent conflicts.`);
             return;
         }
 
         bot = new TelegramBot(token, { polling: true });
-        console.log('[Telegram] Bot started with polling.');
+        console.log(`[Telegram] Bot started with polling on process ${process.pid}.`);
 
         bot.on('polling_error', (err) => {
-            console.error('[Telegram] Polling error:', err.message);
+            console.error(`[Telegram] Polling error on process ${process.pid}:`, err.message);
         });
     }
+
+    // Graceful shutdown listeners
+    const handleShutdown = async () => {
+        if (bot) {
+            console.log(`[Telegram] Process ${process.pid} is terminating. Stopping Telegram bot polling cleanly...`);
+            try {
+                if (typeof bot.stopPolling === 'function') {
+                    await bot.stopPolling();
+                    console.log(`[Telegram] Polling stopped cleanly on process ${process.pid}.`);
+                }
+            } catch (err) {
+                console.error(`[Telegram] Error during graceful shutdown of bot polling on process ${process.pid}:`, err.message);
+            }
+        }
+    };
+
+    process.once('SIGINT', handleShutdown);
+    process.once('SIGTERM', handleShutdown);
 
     // Register handlers (used for both webhook and polling modes)
     bot.onText(/\/start/, handleStartCommand);

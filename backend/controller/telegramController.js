@@ -162,6 +162,7 @@ const initTelegramBot = () => {
 
     if (isWebhookEnabled) {
         // Webhook mode: do not poll, register webhook URL
+        console.log(`[Telegram] Process ${process.pid} attempting to register Webhook URL: [${webhookUrl}]`);
         bot = new TelegramBot(token);
         bot.setWebHook(webhookUrl)
             .then(() => console.log(`[Telegram] Bot configured with Webhook (Process ${process.pid}): ${webhookUrl}`))

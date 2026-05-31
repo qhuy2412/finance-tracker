@@ -21,7 +21,6 @@ const telegramRoute = require("./router/telegramRoute");
 const { initTelegramBot } = require("./controller/telegramController");
 
 const db = require("./config/db");
-const initDatabase = require("./config/dbInit");
 const app = express();
 
 // Trust reverse proxy (Cloudflare Tunnel / Nginx) to extract real client IP in rate-limiters
@@ -62,17 +61,10 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 9999;
 
-// Run automatic database schema migration, then start the server
-initDatabase()
-    .then(() => {
-        app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
-            initTelegramBot();
-        });
-    })
-    .catch((err) => {
-        console.error('Fatal error during database migration. Application cannot start:', err);
-        process.exit(1);
-    });
+// Start the server directly
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    initTelegramBot();
+});
 
 module.exports = app;

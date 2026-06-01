@@ -188,11 +188,60 @@ const initTelegramBot = () => {
             return;
         }
 
-        bot = new TelegramBot(token, { polling: true, request: { timeout: 10000 } });
+        // request.timeout MUST exceed polling.params.timeout to avoid premature HTTP aborts
+        bot = new TelegramBot(token, {
+            polling: {
+                interval: 300,
+                autoStart: true,
+                params: { timeout: 25 },
+            },
+            request: { timeout: 35000 },
+        });
         console.log(`[Telegram] Bot started with polling on process ${process.pid}.`);
 
+        // Track last successful poll to detect silent connection drops
+        let lastPollActivity = Date.now();
+        bot.on('message', () => { lastPollActivity = Date.now(); });
+        bot.on('polling_error', () => { lastPollActivity = Date.now(); });
+
+        // Watchdog: restart polling if no activity for 5 minutes (silent drop)
+        const WATCHDOG_INTERVAL_MS = 60 * 1000;
+        const MAX_IDLE_MS = 5 * 60 * 1000;
+        const watchdog = setInterval(async () => {
+            const idleMs = Date.now() - lastPollActivity;
+            if (idleMs > MAX_IDLE_MS) {
+                console.warn(`[Telegram] Watchdog: No polling activity for ${Math.round(idleMs / 1000)}s on process ${process.pid}. Restarting polling...`);
+                lastPollActivity = Date.now();
+                try {
+                    await bot.stopPolling();
+                    await bot.startPolling();
+                    console.log(`[Telegram] Polling restarted by watchdog on process ${process.pid}.`);
+                } catch (err) {
+                    console.error(`[Telegram] Watchdog restart failed on process ${process.pid}:`, err.message);
+                }
+            }
+        }, WATCHDOG_INTERVAL_MS);
+        if (watchdog.unref) watchdog.unref();
+
+        let pollingErrorCount = 0;
         bot.on('polling_error', (err) => {
-            console.error(`[Telegram] Polling error on process ${process.pid}:`, err.message);
+            pollingErrorCount++;
+            console.error(`[Telegram] Polling error #${pollingErrorCount} on process ${process.pid}:`, err.message);
+
+            // Auto-restart polling after repeated fatal errors
+            if (pollingErrorCount >= 5) {
+                pollingErrorCount = 0;
+                console.warn(`[Telegram] Too many polling errors. Restarting polling on process ${process.pid}...`);
+                setTimeout(async () => {
+                    try {
+                        await bot.stopPolling();
+                        await bot.startPolling();
+                        console.log(`[Telegram] Polling restarted after errors on process ${process.pid}.`);
+                    } catch (restartErr) {
+                        console.error(`[Telegram] Auto-restart failed on process ${process.pid}:`, restartErr.message);
+                    }
+                }, 3000);
+            }
         });
     }
 

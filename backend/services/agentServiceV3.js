@@ -35,7 +35,7 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
             tools: [{ functionDeclarations: toolDeclarations }],
             toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
             systemInstruction: getSystemPrompt(userId, today),
-        }, { timeout: 15000 }); // 15 seconds network timeout
+        }, { timeout: 60000 }); // 60 seconds per AI request (gemma-4-31b with tool calling needs more time)
 
         // history is already trimmed by the caller (buildGenAIHistory)
         const chat = model.startChat({ history });

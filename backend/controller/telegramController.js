@@ -36,11 +36,13 @@ const HELP_MESSAGE =
     `💬 Hoặc chỉ cần nhắn tin bình thường để chat với AI tài chính của bạn!`;
 
 const handleStartCommand = async (msg) => {
-    await bot.sendMessage(msg.chat.id, WELCOME_MESSAGE, { parse_mode: 'Markdown' });
+    await bot.sendMessage(msg.chat.id, WELCOME_MESSAGE, { parse_mode: 'Markdown' })
+        .catch(err => console.error('[Telegram] Start command failed:', err.message));
 };
 
 const handleHelpCommand = async (msg) => {
-    await bot.sendMessage(msg.chat.id, HELP_MESSAGE, { parse_mode: 'Markdown' });
+    await bot.sendMessage(msg.chat.id, HELP_MESSAGE, { parse_mode: 'Markdown' })
+        .catch(err => console.error('[Telegram] Help command failed:', err.message));
 };
 
 const handleLinkCommand = async (msg, match) => {
@@ -51,7 +53,7 @@ const handleLinkCommand = async (msg, match) => {
     if (!userId) {
         return bot.sendMessage(chatId,
             '❌ Mã liên kết không hợp lệ hoặc đã hết hạn (10 phút).\n\nVào FinTra App → Settings → Liên kết Telegram để lấy mã mới.'
-        );
+        ).catch(err => console.error('[Telegram] Link expired alert failed:', err.message));
     }
 
     try {
@@ -60,10 +62,11 @@ const handleLinkCommand = async (msg, match) => {
         telegramSessions.delete(chatId);
         return bot.sendMessage(chatId,
             '✅ Đã liên kết tài khoản FinTra thành công!\n\nBây giờ bạn có thể hỏi mình bất cứ điều gì về tài chính của bạn. Thử hỏi: "Tôi có bao nhiêu tiền?" 💰'
-        );
+        ).catch(err => console.error('[Telegram] Link success alert failed:', err.message));
     } catch (e) {
         console.error('[Telegram] Link account error:', e);
-        return bot.sendMessage(chatId, '❌ Có lỗi xảy ra khi liên kết. Vui lòng thử lại.');
+        return bot.sendMessage(chatId, '❌ Có lỗi xảy ra khi liên kết. Vui lòng thử lại.')
+            .catch(err => console.error('[Telegram] Link error alert failed:', err.message));
     }
 };
 
@@ -72,27 +75,32 @@ const handleUnlinkCommand = async (msg) => {
     try {
         const userId = await TelegramAccount.getUserIdByChatId(chatId);
         if (!userId) {
-            return bot.sendMessage(chatId, 'ℹ️ Bạn chưa liên kết tài khoản FinTra nào.');
+            return bot.sendMessage(chatId, 'ℹ️ Bạn chưa liên kết tài khoản FinTra nào.')
+                .catch(err => console.error('[Telegram] Unlinked status alert failed:', err.message));
         }
         await TelegramAccount.unlinkByUserId(userId);
         telegramSessions.delete(chatId);
-        return bot.sendMessage(chatId, '✅ Đã hủy liên kết tài khoản FinTra.');
+        return bot.sendMessage(chatId, '✅ Đã hủy liên kết tài khoản FinTra.')
+            .catch(err => console.error('[Telegram] Unlink success alert failed:', err.message));
     } catch (e) {
         console.error('[Telegram] Unlink error:', e);
-        return bot.sendMessage(chatId, '❌ Có lỗi xảy ra. Vui lòng thử lại.');
+        return bot.sendMessage(chatId, '❌ Có lỗi xảy ra. Vui lòng thử lại.')
+            .catch(err => console.error('[Telegram] Unlink error alert failed:', err.message));
     }
 };
 
 const handleNewSessionCommand = async (msg) => {
     const chatId = msg.chat.id;
     telegramSessions.delete(chatId);
-    return bot.sendMessage(chatId, '🔄 Đã bắt đầu cuộc trò chuyện mới. Bạn cần gì nào?');
+    return bot.sendMessage(chatId, '🔄 Đã bắt đầu cuộc trò chuyện mới. Bạn cần gì nào?')
+        .catch(err => console.error('[Telegram] New session alert failed:', err.message));
 };
 
 const handleFreeTextMessage = async (msg) => {
     if (msg.text && msg.text.startsWith('/')) return; // ignore commands (handled above)
     if (!msg.text) {
-        return bot.sendMessage(msg.chat.id, 'Mình chỉ hiểu tin nhắn văn bản thôi nhé. Bạn thử gõ câu hỏi của mình.');
+        return bot.sendMessage(msg.chat.id, 'Mình chỉ hiểu tin nhắn văn bản thôi nhé. Bạn thử gõ câu hỏi của mình.')
+            .catch(err => console.error('[Telegram] Non-text warning failed:', err.message));
     }
 
     const chatId = msg.chat.id;
@@ -103,14 +111,15 @@ const handleFreeTextMessage = async (msg) => {
         userId = await TelegramAccount.getUserIdByChatId(chatId);
     } catch (e) {
         console.error('[Telegram] DB lookup error:', e);
-        return bot.sendMessage(chatId, '❌ Lỗi hệ thống. Vui lòng thử lại sau.');
+        return bot.sendMessage(chatId, '❌ Lỗi hệ thống. Vui lòng thử lại sau.')
+            .catch(err => console.error('[Telegram] DB error alert failed:', err.message));
     }
 
     if (!userId) {
         return bot.sendMessage(chatId,
             '🔗 Bạn chưa liên kết tài khoản FinTra.\n\nVào *FinTra App* → Settings → Liên kết Telegram để lấy mã, sau đó gửi `/link FINTRA_XXXX` cho mình nhé.',
             { parse_mode: 'Markdown' }
-        );
+        ).catch(err => console.error('[Telegram] Link invite failed:', err.message));
     }
 
     // Show typing indicator (fire-and-forget, do not block on failure)
@@ -121,21 +130,25 @@ const handleFreeTextMessage = async (msg) => {
     try {
         const { reply, sessionId: newSessionId } = await processChatMessage(userId, msg.text, sessionId);
         setSession(chatId, newSessionId);
-        return bot.sendMessage(chatId, reply);
+        return bot.sendMessage(chatId, reply)
+            .catch(err => console.error('[Telegram] Send reply failed:', err.message));
     } catch (e) {
         if (e.status === 404 || e.status === 403) {
             telegramSessions.delete(chatId);
             try {
                 const { reply, sessionId: newSessionId } = await processChatMessage(userId, msg.text, null);
                 setSession(chatId, newSessionId);
-                return bot.sendMessage(chatId, reply);
+                return bot.sendMessage(chatId, reply)
+                    .catch(err => console.error('[Telegram] Send retry reply failed:', err.message));
             } catch (retryError) {
                 console.error('[Telegram] Retry error:', retryError);
-                return bot.sendMessage(chatId, '❌ Có lỗi xảy ra. Vui lòng thử lại.');
+                return bot.sendMessage(chatId, '❌ Có lỗi xảy ra. Vui lòng thử lại.')
+                    .catch(err => console.error('[Telegram] Retry error alert failed:', err.message));
             }
         }
         console.error('[Telegram] Chat processing error:', e);
-        return bot.sendMessage(chatId, '❌ Có lỗi xảy ra khi xử lý tin nhắn. Vui lòng thử lại.');
+        return bot.sendMessage(chatId, '❌ Có lỗi xảy ra khi xử lý tin nhắn. Vui lòng thử lại.')
+            .catch(err => console.error('[Telegram] General error alert failed:', err.message));
     }
 };
 
@@ -163,7 +176,7 @@ const initTelegramBot = () => {
     if (isWebhookEnabled) {
         // Webhook mode: do not poll, register webhook URL
         console.log(`[Telegram] Process ${process.pid} attempting to register Webhook URL: [${webhookUrl}]`);
-        bot = new TelegramBot(token);
+        bot = new TelegramBot(token, { request: { timeout: 10000 } });
         bot.setWebHook(webhookUrl)
             .then(() => console.log(`[Telegram] Bot configured with Webhook (Process ${process.pid}): ${webhookUrl}`))
             .catch(err => console.error(`[Telegram] Webhook setup failed (Process ${process.pid}):`, err.message));
@@ -175,7 +188,7 @@ const initTelegramBot = () => {
             return;
         }
 
-        bot = new TelegramBot(token, { polling: true });
+        bot = new TelegramBot(token, { polling: true, request: { timeout: 10000 } });
         console.log(`[Telegram] Bot started with polling on process ${process.pid}.`);
 
         bot.on('polling_error', (err) => {

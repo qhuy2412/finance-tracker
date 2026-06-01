@@ -35,7 +35,7 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
             tools: [{ functionDeclarations: toolDeclarations }],
             toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
             systemInstruction: getSystemPrompt(userId, today),
-        });
+        }, { timeout: 15000 }); // 15 seconds network timeout
 
         // history is already trimmed by the caller (buildGenAIHistory)
         const chat = model.startChat({ history });

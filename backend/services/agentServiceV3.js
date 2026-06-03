@@ -4,7 +4,7 @@ const { toolDeclarations, executeTool } = require('../utils/agentToolsV3');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-const MODEL = 'gemini-flash-2.5';
+const MODEL = 'gemini-2.5-flash';
 const MAX_ITERATIONS = 4;
 const SIGNAL_CLARIFICATION = 'CLARIFICATION_REQUEST';
 const SIGNAL_PENDING_TXN = 'PENDING_TRANSACTION';

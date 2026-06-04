@@ -37,3 +37,23 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # 3. Monitoring Service (Uptime Kuma)
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: fintra_uptime_kuma
+    restart: always
+    ports:
+      - "3001:3001"
+    volumes:
+      - uptime_kuma_data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  uptime_kuma_data:
+

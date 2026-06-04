@@ -18,6 +18,7 @@ const dashboardRoute = require("./router/dashboardRoute");
 const chatRoute = require("./router/chatRoute");
 const billRoute = require("./router/billRoute");
 const telegramRoute = require("./router/telegramRoute");
+const healthRoute = require("./router/healthRoute");
 const { initTelegramBot } = require("./controller/telegramController");
 
 const db = require("./config/db");
@@ -48,6 +49,7 @@ app.use("/api/dashboard", dashboardRoute);
 app.use("/api/chat", chatRoute);
 app.use("/api/bills", billRoute);
 app.use("/api/telegram", telegramRoute);
+app.use("/api/health", healthRoute);
 
 // ── Global error handler ────────────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars

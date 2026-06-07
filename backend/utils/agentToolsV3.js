@@ -68,38 +68,39 @@ const toolDeclarations = [
 // Fix #4: Instead of only adding LIMIT when missing, override any LIMIT > 100
 // to prevent AI from passing checks with "LIMIT 5000".
 const capQueryLimit = (sql) => {
+    const cleanedSql = sql.trim().replace(/;+$/, '').trim();
     // Tách riêng 3 trường hợp syntax của LIMIT trong MySQL
     const offsetSyntaxRx = /\bLIMIT\s+(\d+)\s+OFFSET\s+(\d+)\b/i;
     const commaSyntaxRx = /\bLIMIT\s+(\d+)\s*,\s*(\d+)\b/i;
     const simpleSyntaxRx = /\bLIMIT\s+(\d+)\b/i;
 
-    let match = offsetSyntaxRx.exec(sql);
+    let match = offsetSyntaxRx.exec(cleanedSql);
     if (match) {
         let rowCount = parseInt(match[1], 10);
         let offset = parseInt(match[2], 10);
         rowCount = Math.min(rowCount, MAX_QUERY_ROWS);
         if (offset > 1000) offset = 1000; // Prevent extremely large offset
-        return sql.replace(offsetSyntaxRx, `LIMIT ${rowCount} OFFSET ${offset}`);
+        return cleanedSql.replace(offsetSyntaxRx, `LIMIT ${rowCount} OFFSET ${offset}`);
     }
 
-    match = commaSyntaxRx.exec(sql);
+    match = commaSyntaxRx.exec(cleanedSql);
     if (match) {
         let offset = parseInt(match[1], 10);
         let rowCount = parseInt(match[2], 10);
         rowCount = Math.min(rowCount, MAX_QUERY_ROWS);
         if (offset > 1000) offset = 1000; // Prevent extremely large offset
-        return sql.replace(commaSyntaxRx, `LIMIT ${offset}, ${rowCount}`);
+        return cleanedSql.replace(commaSyntaxRx, `LIMIT ${offset}, ${rowCount}`);
     }
 
-    match = simpleSyntaxRx.exec(sql);
+    match = simpleSyntaxRx.exec(cleanedSql);
     if (match) {
         let rowCount = parseInt(match[1], 10);
         rowCount = Math.min(rowCount, MAX_QUERY_ROWS);
-        return sql.replace(simpleSyntaxRx, `LIMIT ${rowCount}`);
+        return cleanedSql.replace(simpleSyntaxRx, `LIMIT ${rowCount}`);
     }
 
     // No LIMIT -> append at the end
-    return `${sql} LIMIT ${MAX_QUERY_ROWS}`;
+    return `${cleanedSql} LIMIT ${MAX_QUERY_ROWS}`;
 };
 
 // ─── TOOL EXECUTION LOGIC ─────────────────────────────────────────────────

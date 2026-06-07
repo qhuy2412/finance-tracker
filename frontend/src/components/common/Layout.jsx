@@ -1,20 +1,20 @@
 import { useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import ChatWidget from "./Chatwidget";
+import NotificationBell from "./NotificationBell";
 import {
   LayoutDashboard,
   Wallet,
   PiggyBank,
   LogOut,
   User,
-  Bell,
   ChevronRight,
   ArrowLeftRight,
   HandCoins,
   Coins,
   History,
   Menu,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { useAuth } from "@/store/AuthContext";
 
@@ -147,11 +147,8 @@ export default function Layout() {
 
           {/* Actions */}
           <div className="flex items-center gap-3">
-            {/* Notification */}
-            <button className="relative h-9 w-9 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors">
-              <Bell size={17} />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-red-500 rounded-full border-2 border-white" />
-            </button>
+            {/* Notification Bell */}
+            <NotificationBell />
 
             {/* Avatar */}
             <div className="flex items-center gap-2.5 pl-3 border-l border-slate-100">

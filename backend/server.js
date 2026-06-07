@@ -19,7 +19,10 @@ const chatRoute = require("./router/chatRoute");
 const billRoute = require("./router/billRoute");
 const telegramRoute = require("./router/telegramRoute");
 const healthRoute = require("./router/healthRoute");
+const notificationRoute = require("./router/notificationRoute");
+const reportRoute = require("./router/reportRoute");
 const { initTelegramBot } = require("./controller/telegramController");
+const { initScheduler } = require("./services/schedulerService");
 
 const db = require("./config/db");
 const app = express();
@@ -34,7 +37,7 @@ app.use(cookieParser());
 app.use(cors({
     origin: true,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }));
 
 app.use("/api/auth", authRoute);
@@ -50,6 +53,8 @@ app.use("/api/chat", chatRoute);
 app.use("/api/bills", billRoute);
 app.use("/api/telegram", telegramRoute);
 app.use("/api/health", healthRoute);
+app.use("/api/notifications", notificationRoute);
+app.use("/api/reports", reportRoute);
 
 // ── Global error handler ────────────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
@@ -67,6 +72,7 @@ const PORT = process.env.PORT || 9999;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     initTelegramBot();
+    initScheduler();
 });
 
 module.exports = app;

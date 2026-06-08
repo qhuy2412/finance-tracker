@@ -3,11 +3,15 @@ const db = require('../config/db'); // H4: require ở top-level, không đẻ t
 const Saving = require('../model/savingModel');
 const Wallet = require('../model/walletModel');
 const financeService = require('../services/financeService');
+const { logUserActivity } = require('../utils/logger');
 
 const createSaving = async (req, res) => {
     const userId = req.user.id;
     try {
         const result = await financeService.createSaving(userId, req.body);
+        
+        logUserActivity(userId, 'CREATE_SAVINGS', `Tạo mục tiêu tiết kiệm mới "${req.body.name}" với số tiền mục tiêu: ${Number(req.body.target_amount).toLocaleString('vi-VN')} ₫`, req);
+
         return res.status(201).json(result);
     } catch (error) {
         return res.status(error.statusCode || 500).json({ message: error.message });
@@ -29,6 +33,9 @@ const deleteSaving = async (req, res) => {
     const userId = req.user.id;
     try {
         await Saving.deleteSaving(id, userId);
+
+        logUserActivity(userId, 'DELETE_SAVINGS', `Xóa mục tiêu tiết kiệm ID ${id}`, req);
+
         res.status(200).json({ message: "Xóa mục tiêu tiết kiệm thành công!" });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -91,6 +98,8 @@ const depositSaving = async (req, res) => {
             connection.release();
         }
 
+        logUserActivity(userId, 'DEPOSIT_SAVINGS', `Gửi ${Number(add_amount).toLocaleString('vi-VN')} ₫ vào mục tiêu tiết kiệm "${goal.name}" từ ví ID ${wallet_id}`, req);
+
         res.status(200).json({ message: "Nạp tiền thành công!", current_amount: newAmount, status });
     } catch (error) {
         console.error('[depositSaving]', error.message);
@@ -141,6 +150,8 @@ const withdrawSaving = async (req, res) => {
             connection.release();
         }
 
+        logUserActivity(userId, 'WITHDRAW_SAVINGS', `Rút ${Number(withdraw_amount).toLocaleString('vi-VN')} ₫ từ mục tiêu tiết kiệm "${goal.name}" về ví ID ${wallet_id}`, req);
+
         res.status(200).json({ message: "Rút tiền thành công!", current_amount: newAmount, status });
     } catch (error) {
         console.error('[withdrawSaving]', error.message);
@@ -188,6 +199,9 @@ const disburseSaving = async (req, res) => {
             await connection.commit();
 
             const totalDisbursed = contributions.reduce((s, c) => s + c.net_amount, 0);
+
+            logUserActivity(userId, 'DISBURSE_SAVINGS', `Giải ngân toàn bộ số tiền của mục tiêu tiết kiệm "${goal.name}" với tổng giá trị hoàn trả: ${totalDisbursed.toLocaleString('vi-VN')} ₫`, req);
+
             res.status(200).json({
                 message: `Giải ngân thành công! Đã hoàn trả ${totalDisbursed.toLocaleString('vi-VN')} ₫ về ${contributions.length} ví.`,
                 disbursed: contributions,

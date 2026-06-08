@@ -3,6 +3,7 @@ const Wallet = require("../model/walletModel");
 const Saving = require("../model/savingModel");
 const { v4: uuidv4 } = require('uuid');
 const financeService = require('../services/financeService');
+const { logUserActivity } = require('../utils/logger');
 
 const getAllWallets = async (req, res) => {
     try {
@@ -18,6 +19,9 @@ const createWallet = async (req, res) => {
         const userId = req.user.id;
         const { name, type, balance } = req.body;
         const result = await financeService.createWallet(userId, { name, type, balance });
+        
+        logUserActivity(userId, 'CREATE_WALLET', `Tạo ví mới "${name}" (${type}) với số dư ban đầu: ${Number(balance).toLocaleString('vi-VN')} ₫`, req);
+
         return res.status(201).json(result);
     } catch (error) {
         return res.status(error.statusCode || 500).json({ message: error.message });
@@ -59,6 +63,9 @@ const updateWallet = async (req, res) => {
         }
 
         await Wallet.updateWallet(walletId, name, type, balance);
+
+        logUserActivity(userId, 'UPDATE_WALLET', `Cập nhật ví "${name}" (${type}) - Số dư mới: ${Number(balance).toLocaleString('vi-VN')} ₫ (Số dư cũ: ${Number(wallet.balance).toLocaleString('vi-VN')} ₫)`, req);
+
         return res.status(200).json({ message: "Wallet updated successfully!" });
     } catch (error) {
         return res.status(500).json({ message: error.message });

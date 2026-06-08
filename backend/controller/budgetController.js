@@ -1,10 +1,15 @@
 const db = require('../config/db');
 const { v4: uuidv4 } = require('uuid');
 const financeService = require('../services/financeService');
+const { logUserActivity } = require('../utils/logger');
 const setBudget = async (req, res) => {
     const userId = req.user.id;
+    const { category_id, amount } = req.body;
     try {
         const result = await financeService.setBudget(userId, req.body);
+
+        logUserActivity(userId, 'CREATE_BUDGET', `Thiết lập/cập nhật ngân sách danh mục ${category_id} với số tiền: ${Number(amount).toLocaleString('vi-VN')} ₫`, req);
+
         return res.status(201).json(result);
     } catch (error) {
         return res.status(error.statusCode || 500).json({ message: error.message });
@@ -50,6 +55,9 @@ const deleteBudget = async (req, res) => {
     const { id } = req.params;
     try {
         const result = await financeService.deleteBudget(userId, id);
+
+        logUserActivity(userId, 'DELETE_BUDGET', `Xóa ngân sách ID ${id}`, req);
+
         return res.status(200).json(result);
     } catch (error) {
         return res.status(error.statusCode || 500).json({ message: error.message });

@@ -5,6 +5,7 @@ const Category = require("../model/categoryModel");
 const { v4: uuidv4 } = require('uuid');
 const financeService = require('../services/financeService');
 const Saving = require('../model/savingModel');
+const { logUserActivity } = require('../utils/logger');
 const getAllTransactionsByWalletId = async (req, res) => {
     try {
         const walletId = req.params.walletId;
@@ -35,6 +36,9 @@ const createNormalTransaction = async (req, res) => {
             transaction_date,
             note,
         });
+
+        logUserActivity(userId, 'CREATE_TRANSACTION', `Tạo giao dịch ${type === 'INCOME' ? 'Thu nhập' : 'Chi tiêu'} số tiền: ${Number(amount).toLocaleString('vi-VN')} ₫. Ghi chú: ${note || 'không có'}`, req);
+
         return res.status(201).json(result);
     } catch (error) {
         return res.status(error.statusCode || 500).json({ message: error.message });
@@ -87,6 +91,9 @@ const deleteTransaction = async (req, res) => {
         await Transaction.deleteTransaction(transactionId, connection);
         
         await connection.commit();
+
+        logUserActivity(userId, 'DELETE_TRANSACTION', `Xóa giao dịch ${transaction.type === 'INCOME' ? 'Thu nhập' : 'Chi tiêu'} số tiền: ${Number(transaction.amount).toLocaleString('vi-VN')} ₫. Ghi chú cũ: ${transaction.note || 'không có'}`, req);
+
         return res.status(200).json({ message: "Transaction deleted successfully!" });
     } catch (error) {
         await connection.rollback();
@@ -173,6 +180,9 @@ const updateTransaction = async (req, res) => {
         await Transaction.updateTransaction(transactionId, categoryId, type, amount, transaction_date, note, connection);
         
         await connection.commit();
+
+        logUserActivity(userId, 'UPDATE_TRANSACTION', `Cập nhật giao dịch ${type === 'INCOME' ? 'Thu nhập' : 'Chi tiêu'} số tiền: ${Number(amount).toLocaleString('vi-VN')} ₫ (cũ: ${oldTransaction.type === 'INCOME' ? 'Thu nhập' : 'Chi tiêu'} ${Number(oldTransaction.amount).toLocaleString('vi-VN')} ₫). Ghi chú: ${note || 'không có'}`, req);
+
         return res.status(200).json({ message: "Transaction updated successfully!" });
     } catch (error) {
         await connection.rollback();

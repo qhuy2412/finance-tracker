@@ -2,6 +2,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const TelegramAccount = require('../model/telegramModel');
 const telegramLinkService = require('../services/telegramLinkService');
 const { processChatMessage } = require('../services/chatService');
+const { logUserActivity } = require('../utils/logger');
 
 const token = process.env.TELEGRAM_BOT_API;
 
@@ -60,6 +61,9 @@ const handleLinkCommand = async (msg, match) => {
         await TelegramAccount.linkAccount(chatId, userId);
         // Reset session when account is newly linked
         telegramSessions.delete(chatId);
+
+        logUserActivity(userId, 'LINK_TELEGRAM', `Đã liên kết tài khoản Telegram (Chat ID: ${chatId}) qua bot`, null);
+
         return bot.sendMessage(chatId,
             '✅ Đã liên kết tài khoản FinTra thành công!\n\nBây giờ bạn có thể hỏi mình bất cứ điều gì về tài chính của bạn. Thử hỏi: "Tôi có bao nhiêu tiền?" 💰'
         ).catch(err => console.error('[Telegram] Link success alert failed:', err.message));
@@ -80,6 +84,9 @@ const handleUnlinkCommand = async (msg) => {
         }
         await TelegramAccount.unlinkByUserId(userId);
         telegramSessions.delete(chatId);
+
+        logUserActivity(userId, 'UNLINK_TELEGRAM', `Đã hủy liên kết tài khoản Telegram (Chat ID: ${chatId}) qua bot`, null);
+
         return bot.sendMessage(chatId, '✅ Đã hủy liên kết tài khoản FinTra.')
             .catch(err => console.error('[Telegram] Unlink success alert failed:', err.message));
     } catch (e) {
@@ -298,6 +305,9 @@ const handleWebhook = (req, res) => {
 const generateLinkToken = (req, res) => {
     try {
         const token = telegramLinkService.generateLinkToken(req.user.id);
+
+        logUserActivity(req.user.id, 'GENERATE_TELEGRAM_LINK_TOKEN', 'Yêu cầu tạo mã liên kết tài khoản Telegram', req);
+
         return res.json({ token, expires_in_minutes: 10 });
     } catch (e) {
         console.error('[Telegram] Generate token error:', e);
@@ -326,6 +336,9 @@ const getLinkStatus = async (req, res) => {
 const unlinkAccount = async (req, res) => {
     try {
         await TelegramAccount.unlinkByUserId(req.user.id);
+
+        logUserActivity(req.user.id, 'UNLINK_TELEGRAM', 'Hủy liên kết tài khoản Telegram từ ứng dụng Web', req);
+
         return res.json({ message: 'Đã hủy liên kết tài khoản Telegram.' });
     } catch (e) {
         console.error('[Telegram] Unlink error:', e);

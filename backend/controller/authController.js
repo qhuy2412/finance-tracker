@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
 const User = require('../model/userModel');
+const { logUserActivity } = require('../utils/logger');
 const { sendVerificationEmail } = require('../utils/emailService');
 
 // Ensure email_verifications table exists
@@ -58,6 +59,8 @@ const register = async (req, res) => {
         // Send OTP via Resend
         await sendVerificationEmail(email, code);
 
+        logUserActivity(null, 'REGISTER', `Yêu cầu đăng ký tài khoản với email: ${email}`, req);
+
         return res.status(200).json({ message: "Verification code sent to your email!" });
     } catch (error) {
         console.error('Register error:', error);
@@ -98,6 +101,8 @@ const verifyEmail = async (req, res) => {
         // Clean up verification record
         await db.query('DELETE FROM email_verifications WHERE email = ?', [email]);
 
+        logUserActivity(userId, 'VERIFY_OTP', `Xác thực email thành công, tài khoản đã được kích hoạt cho email: ${email}`, req);
+
         return res.status(201).json({ message: "Email verified! Your account has been created successfully." });
     } catch (error) {
         console.error('Verify email error:', error);
@@ -130,6 +135,9 @@ const login = async (req, res) => {
         }
         res.cookie('access_token', access_token, { ...cookieOptions, maxAge: 15 * 60 * 1000 }); // 15 minutes
         res.cookie('refresh_token', refresh_token, { ...cookieOptions, maxAge: 30 * 24 * 60 * 60 * 1000 }); // 30 days
+
+        logUserActivity(user.id, 'LOGIN', `Đăng nhập thành công từ email: ${email}`, req);
+
         res.status(200).json({
             message: "Login successfully!",
             user: {
@@ -235,6 +243,14 @@ const logout = async (req, res) => {
         await db.query('DELETE FROM refresh_tokens WHERE token = ?', [refresh_token]);
         res.clearCookie('access_token');
         res.clearCookie('refresh_token');
+
+        let userId = null;
+        try {
+            const decoded = jwt.decode(refresh_token);
+            if (decoded) userId = decoded.id;
+        } catch (e) {}
+        logUserActivity(userId, 'LOGOUT', 'Đăng xuất khỏi hệ thống', req);
+
         return res.status(200).json({ message: "Logout successfully!" });
     } catch (error) {
         return res.status(500).json({ message: error.message });

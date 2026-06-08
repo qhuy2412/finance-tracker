@@ -3,6 +3,7 @@ const Debt = require("../model/debtModel");
 const { v4: uuidv4 } = require('uuid');
 const financeService = require('../services/financeService');
 const Saving = require('../model/savingModel');
+const { logUserActivity } = require('../utils/logger');
 
 const getAllDebts = async (req, res) => {
     try {
@@ -15,8 +16,12 @@ const getAllDebts = async (req, res) => {
 };
 const createDebt = async (req, res) => {
     const userId = req.user.id;
+    const { person_name, type, amount } = req.body;
     try {
         const result = await financeService.createDebt(userId, req.body);
+
+        logUserActivity(userId, 'CREATE_DEBT', `Tạo khoản nợ/cho vay: ${type === 'BORROW' ? 'Vay' : 'Cho vay'} đối tác "${person_name}" với số tiền: ${Number(amount).toLocaleString('vi-VN')} ₫`, req);
+
         return res.status(201).json(result);
     } catch (error) {
         return res.status(error.statusCode || 500).json({ message: error.message });
@@ -93,6 +98,9 @@ const payDebt = async (req, res) => {
             [transactionId, userId, wallet_id, debtId, transType, pay_amount, transaction_date, note || '']
         );
         await connection.commit();
+
+        logUserActivity(userId, 'PAY_DEBT', `Thanh toán khoản nợ ID ${debtId} với số tiền: ${Number(pay_amount).toLocaleString('vi-VN')} ₫ từ ví ${wallet_id}`, req);
+
         return res.status(200).json({
             message: "Thanh toán nợ thành công!",
             data: {
@@ -170,6 +178,8 @@ const deleteDebt = async (req, res) => {
         );
 
         await connection.commit();
+
+        logUserActivity(userId, 'DELETE_DEBT', `Xóa khoản nợ ID ${debtId}`, req);
 
         return res.status(200).json({
             message: "Debt deleted and wallet balance updated successfully!",

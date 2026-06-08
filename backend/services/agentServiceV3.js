@@ -44,18 +44,38 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
         let result = await chat.sendMessage(userMessage);
 
         let sessionPendingTxns = [];
+        let steps = [];
+        const totalUsage = { promptTokens: 0, candidatesTokens: 0, totalTokens: 0 };
+
+        // Helper to accumulate token usage from a response
+        const accumulateUsage = (response) => {
+            const usage = response.usageMetadata;
+            if (!usage) return;
+            totalUsage.promptTokens += usage.promptTokenCount || 0;
+            totalUsage.candidatesTokens += usage.candidatesTokenCount || 0;
+            totalUsage.totalTokens += usage.totalTokenCount || 0;
+        };
 
         for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
             const response = result.response;
             const functionCalls = response.functionCalls();
 
+            const currentStep = {
+                iteration,
+                toolCalls: [],
+                observations: []
+            };
+
             // ── No tool calls → AI has the final answer ────────────────
+            accumulateUsage(response);
             if (!functionCalls || functionCalls.length === 0) {
                 if (sessionPendingTxns.length > 0) {
-                    return { type: 'PENDING_TRANSACTION', payload: sessionPendingTxns };
+                    return { type: 'PENDING_TRANSACTION', payload: sessionPendingTxns, steps, totalUsage };
                 }
-                return { type: 'FINAL_ANSWER', payload: response.text().trim() };
+                return { type: 'FINAL_ANSWER', payload: response.text().trim(), steps, totalUsage };
             }
+
+            currentStep.toolCalls = functionCalls.map(c => ({ name: c.name, args: c.args }));
 
             // ── Execute all tools requested in this turn ───────────────
             const toolResponseParts = [];
@@ -63,9 +83,16 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
             for (const call of functionCalls) {
                 const observation = await executeTool(call.name, call.args, userId);
 
+                currentStep.observations.push({
+                    toolName: call.name,
+                    args: call.args,
+                    result: observation
+                });
+
                 // Catch special signals → interrupt loop immediately, do not call AI further
                 if (observation?.action === SIGNAL_CLARIFICATION) {
-                    return { type: 'CLARIFICATION', payload: observation.data };
+                    steps.push(currentStep);
+                    return { type: 'CLARIFICATION', payload: observation.data, steps, totalUsage };
                 }
                 if (observation?.action === SIGNAL_PENDING_TXN) {
                     sessionPendingTxns.push(observation.data);
@@ -86,27 +113,32 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
                 }
             }
 
+            steps.push(currentStep);
+
             // ── Send observations back to AI → get the next response immediately ──────
             result = await chat.sendMessage(toolResponseParts);
         }
 
         // Check final response after the for loop ends
         const lastResponse = result.response;
+        accumulateUsage(lastResponse);
         const lastCalls = lastResponse.functionCalls();
         if (!lastCalls || lastCalls.length === 0) {
             if (sessionPendingTxns.length > 0) {
-                return { type: 'PENDING_TRANSACTION', payload: sessionPendingTxns };
+                return { type: 'PENDING_TRANSACTION', payload: sessionPendingTxns, steps, totalUsage };
             }
-            return { type: 'FINAL_ANSWER', payload: lastResponse.text().trim() };
+            return { type: 'FINAL_ANSWER', payload: lastResponse.text().trim(), steps, totalUsage };
         }
 
         // AI still wants to call tools after MAX_ITERATIONS → safe exit
         if (sessionPendingTxns.length > 0) {
-            return { type: 'PENDING_TRANSACTION', payload: sessionPendingTxns };
+            return { type: 'PENDING_TRANSACTION', payload: sessionPendingTxns, steps, totalUsage };
         }
         return {
             type: 'ERROR',
-            payload: 'Yêu cầu của bạn hơi phức tạp, mình chưa xử lý được ngay lúc này. Bạn thử diễn đạt lại nhé!'
+            payload: 'Yêu cầu của bạn hơi phức tạp, mình chưa xử lý được ngay lúc này. Bạn thử diễn đạt lại nhé!',
+            steps,
+            totalUsage
         };
 
     } catch (err) {
@@ -114,7 +146,9 @@ const runAgentLoop = async (userId, userMessage, history = []) => {
         console.error('[AgentV3] Error:', err);
         return {
             type: 'ERROR',
-            payload: 'Có lỗi kết nối với AI. Vui lòng thử lại sau.'
+            payload: 'Có lỗi kết nối với AI. Vui lòng thử lại sau.',
+            steps: [],
+            totalUsage: { promptTokens: 0, candidatesTokens: 0, totalTokens: 0 }
         };
     }
 };

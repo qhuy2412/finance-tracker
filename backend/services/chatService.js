@@ -10,6 +10,7 @@ const { runAgentLoop, checkConfirmationIntent } = require('./agentServiceV3');
 const financeService = require('./financeService');
 const { sanitizeHistoryLine } = require('../utils/promptsV2');
 const { formatTransactionConfirmText, formatTransactionErrorVi } = require('../utils/chatFormatters');
+const { logChatbotActivity } = require('../utils/logger');
 
 const PENDING_TTL_MS = 10 * 60 * 1000;
 
@@ -48,6 +49,7 @@ const processChatMessage = async (userId, message, sessionId = null) => {
         return { reply: 'Bạn nhắn gì đó đi, mình sẵn sàng hỗ trợ!', sessionId };
     }
 
+    const startTime = Date.now();
     let dbMessages = [];
     let effectiveSessionId = sessionId;
 
@@ -69,12 +71,18 @@ const processChatMessage = async (userId, message, sessionId = null) => {
         dbMessages = messages;
     }
 
-    const saveAndReturn = async (reply) => {
+    const saveAndReturn = async (reply, steps = [], tokenUsage = null) => {
+        const endTime = Date.now();
+        const responseTimeMs = endTime - startTime;
+
         await Promise.all([
             Chat.saveMessage(uuidv4(), effectiveSessionId, 'user', message),
             Chat.saveMessage(uuidv4(), effectiveSessionId, 'assistant', reply),
             Chat.touchSession(effectiveSessionId),
         ]).catch(e => console.error('[ChatService] Save failed:', e));
+
+        logChatbotActivity(userId, effectiveSessionId, message, reply, steps, responseTimeMs, tokenUsage);
+
         return { reply, sessionId: effectiveSessionId };
     };
 
@@ -118,20 +126,20 @@ const processChatMessage = async (userId, message, sessionId = null) => {
 
     switch (agentResult.type) {
         case 'FINAL_ANSWER':
-            return saveAndReturn(agentResult.payload);
+            return saveAndReturn(agentResult.payload, agentResult.steps, agentResult.totalUsage);
 
         case 'CLARIFICATION':
-            return saveAndReturn(agentResult.payload);
+            return saveAndReturn(agentResult.payload, agentResult.steps, agentResult.totalUsage);
 
         case 'PENDING_TRANSACTION': {
             const txData = agentResult.payload;
             pendingActions.set(effectiveSessionId, { data: txData, createdAt: Date.now() });
-            return saveAndReturn(formatTransactionConfirmText(txData));
+            return saveAndReturn(formatTransactionConfirmText(txData), agentResult.steps, agentResult.totalUsage);
         }
 
         case 'ERROR':
         default:
-            return saveAndReturn(agentResult.payload || 'Có lỗi xảy ra. Vui lòng thử lại.');
+            return saveAndReturn(agentResult.payload || 'Có lỗi xảy ra. Vui lòng thử lại.', agentResult.steps, agentResult.totalUsage);
     }
 };
 

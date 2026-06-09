@@ -90,20 +90,20 @@ jobs:
                   - "9999:9999"
                 volumes:
                   - /var/www/fintra/logs:/app/logs
-              env_file:
-                - /var/www/fintra/.env
-              environment:
-                - PORT=9999
-                - NODE_ENV=production
-                - DB_HOST=host.docker.internal
-                - DB_PORT=6033
-              extra_hosts:
-                - "host.docker.internal:host-gateway"
-              logging:
-                driver: "json-file"
-                options:
-                  max-size: "10m"
-                  max-file: "3"
+                env_file:
+                  - /var/www/fintra/.env
+                environment:
+                  - PORT=9999
+                  - NODE_ENV=production
+                  - DB_HOST=host.docker.internal
+                  - DB_PORT=6033
+                extra_hosts:
+                  - "host.docker.internal:host-gateway"
+                logging:
+                  driver: "json-file"
+                  options:
+                    max-size: "10m"
+                    max-file: "3"
             
               frontend:
                 image: ghcr.io/${{ steps.prep.outputs.owner_lower }}/${{ steps.prep.outputs.name_lower }}-frontend:latest

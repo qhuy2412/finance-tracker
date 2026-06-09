@@ -76,6 +76,7 @@ const getWeekBounds = () => {
  */
 const checkMissingTransactions = async () => {
   let lockConn;
+  let lockAcquired = false;
   try {
     lockConn = await createLockConnection();
     const [[{ lockResult }]] = await lockConn.execute(
@@ -85,10 +86,10 @@ const checkMissingTransactions = async () => {
 
     if (lockResult !== 1) {
       console.log('[NotificationAgent] Daily check already running or locked on another VM/instance. Skipping.');
-      await lockConn.end().catch(() => {});
       return;
     }
 
+    lockAcquired = true;
     console.log('[NotificationAgent] Daily check lock acquired. Running check...');
     const [users] = await db.execute('SELECT id FROM users');
 
@@ -121,10 +122,12 @@ const checkMissingTransactions = async () => {
     console.error('[NotificationAgent] Daily check error:', err.message);
   } finally {
     if (lockConn) {
-      try {
-        await lockConn.execute('SELECT RELEASE_LOCK(?)', ['fintra_cron_daily_alert']);
-      } catch (releaseErr) {
-        console.error('[NotificationAgent] Failed to release daily check lock:', releaseErr.message);
+      if (lockAcquired) {
+        try {
+          await lockConn.execute('SELECT RELEASE_LOCK(?)', ['fintra_cron_daily_alert']);
+        } catch (releaseErr) {
+          console.error('[NotificationAgent] Failed to release daily check lock:', releaseErr.message);
+        }
       }
       await lockConn.end().catch(() => {});
     }
@@ -205,6 +208,7 @@ const runFinancialAdvisorLoop = async (userId) => {
 
 const runWeeklyReports = async () => {
   let lockConn;
+  let lockAcquired = false;
   try {
     lockConn = await createLockConnection();
     const [[{ lockResult }]] = await lockConn.execute(
@@ -214,10 +218,10 @@ const runWeeklyReports = async () => {
 
     if (lockResult !== 1) {
       console.log('[NotificationAgent] Weekly reports already running or locked on another VM/instance. Skipping.');
-      await lockConn.end().catch(() => {});
       return;
     }
 
+    lockAcquired = true;
     console.log('[NotificationAgent] Weekly reports lock acquired. Running reports...');
     const [users] = await db.execute('SELECT id FROM users');
 
@@ -236,10 +240,12 @@ const runWeeklyReports = async () => {
     console.error('[NotificationAgent] Weekly reports error:', err.message);
   } finally {
     if (lockConn) {
-      try {
-        await lockConn.execute('SELECT RELEASE_LOCK(?)', ['fintra_cron_weekly_report']);
-      } catch (releaseErr) {
-        console.error('[NotificationAgent] Failed to release weekly reports lock:', releaseErr.message);
+      if (lockAcquired) {
+        try {
+          await lockConn.execute('SELECT RELEASE_LOCK(?)', ['fintra_cron_weekly_report']);
+        } catch (releaseErr) {
+          console.error('[NotificationAgent] Failed to release weekly reports lock:', releaseErr.message);
+        }
       }
       await lockConn.end().catch(() => {});
     }

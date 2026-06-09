@@ -31,7 +31,15 @@ export function CurrencyInput({
   // Format a raw numeric string with thousand-separator dots (vi-VN style)
   const format = (raw) => {
     if (raw === "" || raw === null || raw === undefined) return "";
-    const digits = String(raw).replace(/\D/g, "");
+    let valStr = String(raw);
+    
+    // If it's a standard JS numeric representation (e.g. "1000.00" or 1000)
+    // convert it to round integer first to ignore any trailing decimal zeros.
+    if (!isNaN(Number(valStr))) {
+      valStr = Math.round(Number(valStr)).toString();
+    }
+    
+    const digits = valStr.replace(/\D/g, "");
     if (digits === "") return "";
     return Number(digits).toLocaleString("vi-VN");
   };

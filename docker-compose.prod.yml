@@ -40,4 +40,18 @@ services:
         max-size: "10m"
         max-file: "3"
 
-
+  # 3. Promtail Log Collector (runs on all hosts)
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: fintra_promtail_prod
+    user: "0:0"
+    volumes:
+      - /var/www/fintra/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/www/fintra/logs:/var/log/fintra:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/promtail-config.yml -config.expand-env=true
+    environment:
+      - MONITOR_IP=${MONITOR_IP}
+      - HOSTNAME=${HOSTNAME}
+    restart: always

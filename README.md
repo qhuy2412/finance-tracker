@@ -16,6 +16,8 @@ A personal finance management app: track wallets, transactions, budgets, debts, 
 | 🤖 AI Chatbot (Web) | Financial advice, query your data in natural language |
 | 📱 Telegram Bot | Same AI brain accessible via Telegram — link account from Settings |
 | 📈 Dashboard | Income/expense charts, balance overview, trends |
+| 🔔 Notifications | Daily transaction alerts, budget alerts, savings milestones, and weekly reports |
+| 📊 Weekly Reports | AI-generated financial insights, weekly breakdowns, and category charts |
 
 ## 🚀 Quick Start
 
@@ -24,7 +26,21 @@ A personal finance management app: track wallets, transactions, budgets, debts, 
 - MySQL 8+
 - npm
 
-### Installation
+### Run via Docker (Recommended / Easiest)
+
+You can run the entire FinTra stack (MySQL database, Express backend, and React frontend) using Docker Compose:
+
+```bash
+# Start all containers in the background
+docker compose up -d --build
+```
+
+- **Frontend**: [http://localhost:80](http://localhost:80)
+- **Backend API**: [http://localhost:9999](http://localhost:9999)
+- **Database**: Port `3306` (credentials: `root` / `fintra_root_password`)
+- **Logs**: Mounted to `./backend/logs/` and streamed to stdout
+
+### Manual Installation (Local Dev)
 
 ```bash
 # Clone the repo
@@ -64,6 +80,11 @@ GEMINI_API_KEY=your_google_generative_ai_key
 
 # Telegram Bot (optional)
 TELEGRAM_BOT_API=your_telegram_bot_token
+
+# Cron Scheduler Config (optional)
+DAILY_ALERT_HOUR=21
+WEEKLY_REPORT_DAY=0
+WEEKLY_REPORT_HOUR=20
 ```
 
 **Frontend** — create `frontend/.env`:
@@ -86,25 +107,27 @@ cd frontend && npm run dev
 ```
 FinTra/
 ├── backend/            # Express API (Node.js + MySQL)
-│   ├── config/         # Database connection
-│   ├── controller/     # Request handlers
+│   ├── config/         # Database connection & schema migration script
+│   ├── controller/     # Request handlers (e.g. notifications, reports, logs)
 │   ├── middleware/     # Auth (JWT), rate limiting
 │   ├── model/          # Raw SQL queries
-│   ├── router/         # API route definitions
-│   ├── services/       # External services (AI, email, Telegram), business logic
-│   ├── utils/          # Helpers, AI prompts, SQL validator
-│   └── server.js       # Entry point
+│   ├── router/         # Express API route definitions
+│   ├── services/       # External services (AI Agent loop, email, Telegram, scheduler)
+│   ├── utils/          # Helpers, AI prompts, SQL validator, JSONL logger
+│   └── server.js       # Entry point & app setup
 ├── frontend/           # React 19 (Vite + Tailwind CSS v4)
 │   └── src/
-│       ├── components/ # Shared UI components
-│       ├── pages/      # Route-level page components
-│       ├── services/   # Axios API wrappers
+│       ├── components/ # Shared UI components (NotificationBell, ChatWidget)
+│       ├── pages/      # Route-level page components (dashboard, reports, wallets)
+│       ├── services/   # Axios API wrappers (notification, report services)
 │       ├── store/      # React Context state management
 │       └── utils/      # Helpers
 ├── tests/              # Integration & exploratory tests (PinchTab)
 ├── .agents/            # AI agent workspace rules & workflows
 │   ├── rules/          # Code quality, backend, frontend rules
 │   └── workflows/      # Dev workflows (commit, review, debug...)
+├── docker-compose.yml  # Local multi-container development stack configuration
+├── docker-compose.prod.yml # Production multi-container deployment configuration
 └── GEMINI.md           # AI agent project context
 ```
 
@@ -122,6 +145,8 @@ FinTra/
 | `POST /api/savings/:id/withdraw` | Withdraw by contribution ratio |
 | `POST /api/savings/:id/disburse` | Disburse all funds back to wallets |
 | `GET/POST/PUT/DELETE /api/debts` | Debt tracking |
+| `GET/PATCH /api/notifications/*` | Notification fetch, unread counts, and reading status |
+| `GET /api/reports/weekly` | Get weekly financial report details & AI analysis |
 | `GET /api/dashboard` | Dashboard summary |
 | `POST /api/bills/scan` | AI bill scanning |
 | `GET/POST /api/chat/sessions` | Chat session management |
@@ -144,9 +169,11 @@ FinTra/
 - **Express v5** + Node.js (CommonJS)
 - **MySQL** + mysql2 (raw SQL, no ORM)
 - **JWT** (httpOnly cookie) + bcrypt
-- **Google Generative AI** (Gemini) — agentic chatbot + bill scanning
+- **Google Generative AI** (Gemini) — ReAct loop agent + chatbot + bill scan
+- **node-cron** — daily and weekly scheduler integration
 - **node-telegram-bot-api** — Telegram bot integration
 - **Resend** + Nodemailer — email
+- **Custom Logger** — JSONL action log + chatbot trace logger
 
 ## 🔐 Security
 
@@ -154,6 +181,7 @@ FinTra/
 - All SQL queries use **parameterized queries** (`?`) — no SQL injection
 - Every API endpoint enforces **ownership checks** (`WHERE user_id = ?`)
 - LLM-generated SQL is validated (SELECT only) before execution
+- Distributed lock synchronization via MySQL advisory locks (`GET_LOCK`) for background jobs
 - Rate limiting on auth routes (10 req / 15 min)
 - Payload limit: 10MB (for bill scan base64)
 

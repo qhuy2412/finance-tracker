@@ -27,6 +27,8 @@ jobs:
 
       - name: Deploy App & Collectors to VM1 & VM2 via SSH
         uses: appleboy/ssh-action@master
+        env:
+          MONITOR_IP: ${{ secrets.MONITOR_IP }}
         with:
           host: ${{ secrets.VM1_IP }},${{ secrets.VM2_IP }}
           username: ${{ secrets.SERVER_USER }}
@@ -34,62 +36,60 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           # We pass variables to the SSH script
           envs: REPO_OWNER_LOWER,REPO_NAME_LOWER,MONITOR_IP
-        env:
-          MONITOR_IP: ${{ secrets.MONITOR_IP }}
-        script: |
-          # 1. Prepare application directory
-          sudo mkdir -p /var/www/fintra/logs
-          sudo chown -R $USER:$USER /var/www/fintra
-          
-          # 2. Write Promtail configuration file dynamically
-          cat << 'PROMTAIL_EOF' > /var/www/fintra/promtail-config.yml
-          server:
-            http_listen_port: 9080
-            grpc_listen_port: 0
-
-          positions:
-            filename: /tmp/positions.yaml
-
-          clients:
-            - url: http://${MONITOR_IP}:3100/loki/api/v1/push
-
-          scrape_configs:
-            # 1. Scrape raw application logs
-            - job_name: fintra-app-logs
-              static_configs:
-                - targets: [localhost]
-                  labels:
-                    job: fintra-app-logs
-                    host: ${HOSTNAME}
-                    __path__: /var/log/fintra/*.log
-
-            # 2. Scrape Docker container logs
-            - job_name: docker-container-logs
-              docker_sd_configs:
-                - host: unix:///var/run/docker.sock
-                  refresh_interval: 5s
-              relabel_configs:
-                - source_labels: [__meta_docker_container_name]
-                  regex: /(fintra_backend_prod|fintra_frontend_prod)
-                  target_label: container_name
-                - source_labels: [__meta_docker_container_name]
-                  regex: /(fintra_backend_prod|fintra_frontend_prod)
-                  target_label: job
-                - replacement: ${HOSTNAME}
-                  target_label: host
-          PROMTAIL_EOF
-
-          # 3. Write the docker-compose.prod.yml content dynamically to the server
-          cat << 'EOF' > /var/www/fintra/docker-compose.yml
-          services:
-            backend:
-              image: ghcr.io/${{ steps.prep.outputs.owner_lower }}/${{ steps.prep.outputs.name_lower }}-backend:latest
-              container_name: fintra_backend_prod
-              restart: always
-              ports:
-                - "9999:9999"
-              volumes:
-                - /var/www/fintra/logs:/app/logs
+          script: |
+            # 1. Prepare application directory
+            sudo mkdir -p /var/www/fintra/logs
+            sudo chown -R $USER:$USER /var/www/fintra
+            
+            # 2. Write Promtail configuration file dynamically
+            cat << 'PROMTAIL_EOF' > /var/www/fintra/promtail-config.yml
+            server:
+              http_listen_port: 9080
+              grpc_listen_port: 0
+  
+            positions:
+              filename: /tmp/positions.yaml
+  
+            clients:
+              - url: http://${MONITOR_IP}:3100/loki/api/v1/push
+  
+            scrape_configs:
+              # 1. Scrape raw application logs
+              - job_name: fintra-app-logs
+                static_configs:
+                  - targets: [localhost]
+                    labels:
+                      job: fintra-app-logs
+                      host: ${HOSTNAME}
+                      __path__: /var/log/fintra/*.log
+  
+              # 2. Scrape Docker container logs
+              - job_name: docker-container-logs
+                docker_sd_configs:
+                  - host: unix:///var/run/docker.sock
+                    refresh_interval: 5s
+                relabel_configs:
+                  - source_labels: [__meta_docker_container_name]
+                    regex: /(fintra_backend_prod|fintra_frontend_prod)
+                    target_label: container_name
+                  - source_labels: [__meta_docker_container_name]
+                    regex: /(fintra_backend_prod|fintra_frontend_prod)
+                    target_label: job
+                  - replacement: ${HOSTNAME}
+                    target_label: host
+            PROMTAIL_EOF
+  
+            # 3. Write the docker-compose.prod.yml content dynamically to the server
+            cat << 'EOF' > /var/www/fintra/docker-compose.yml
+            services:
+              backend:
+                image: ghcr.io/${{ steps.prep.outputs.owner_lower }}/${{ steps.prep.outputs.name_lower }}-backend:latest
+                container_name: fintra_backend_prod
+                restart: always
+                ports:
+                  - "9999:9999"
+                volumes:
+                  - /var/www/fintra/logs:/app/logs
               env_file:
                 - /var/www/fintra/.env
               environment:
@@ -104,61 +104,61 @@ jobs:
                 options:
                   max-size: "10m"
                   max-file: "3"
-          
-            frontend:
-              image: ghcr.io/${{ steps.prep.outputs.owner_lower }}/${{ steps.prep.outputs.name_lower }}-frontend:latest
-              container_name: fintra_frontend_prod
-              restart: always
-              ports:
-                - "80:80"
-              depends_on:
-                - backend
-              logging:
-                driver: "json-file"
-                options:
-                  max-size: "10m"
-                  max-file: "3"
-
-            promtail:
-              image: grafana/promtail:3.0.0
-              container_name: fintra_promtail_prod
-              user: "0:0"
-              volumes:
-                - /var/www/fintra/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
-                - /var/www/fintra/logs:/var/log/fintra:ro
-                - /var/lib/docker/containers:/var/lib/docker/containers:ro
-                - /var/run/docker.sock:/var/run/docker.sock:ro
-              command: -config.file=/etc/promtail/promtail-config.yml -config.expand-env=true
-              environment:
-                - MONITOR_IP=${MONITOR_IP}
-                - HOSTNAME=${HOSTNAME}
-              restart: always
-          EOF
-          
-          # 4. Create a template .env file if it doesn't exist yet
-          if [ ! -f /var/www/fintra/.env ]; then
-            echo "Creating template /var/www/fintra/.env file. Please fill in actual keys on the VM host!"
-            cat << 'ENV_EOF' > /var/www/fintra/.env
-          JWT_SECRET_KEY=generate_a_secure_random_key_here
-          JWT_TOKEN_SECRET=generate_another_secure_key_here
-          RESEND_API_KEY=your_resend_api_key
-          SENDER_EMAIL=noreply@fintra.app
-          GEMINI_API_KEY=your_google_generative_ai_key
-          TELEGRAM_BOT_API=your_telegram_bot_token_optional
-          ENV_EOF
-          fi
-          
-          # 5. Authenticate Docker with GHCR on the target VM
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          
-          # 6. Pull latest images and restart containers
-          cd /var/www/fintra
-          export MONITOR_IP
-          export HOSTNAME=$(hostname)
-          docker compose pull
-          docker compose up -d
-          
-          # 7. Clean up unused/dangling Docker images to save space
-          docker image prune -f
-          
-          echo "Deployment completed successfully on App Node!"
+            
+              frontend:
+                image: ghcr.io/${{ steps.prep.outputs.owner_lower }}/${{ steps.prep.outputs.name_lower }}-frontend:latest
+                container_name: fintra_frontend_prod
+                restart: always
+                ports:
+                  - "80:80"
+                depends_on:
+                  - backend
+                logging:
+                  driver: "json-file"
+                  options:
+                    max-size: "10m"
+                    max-file: "3"
+  
+              promtail:
+                image: grafana/promtail:3.0.0
+                container_name: fintra_promtail_prod
+                user: "0:0"
+                volumes:
+                  - /var/www/fintra/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+                  - /var/www/fintra/logs:/var/log/fintra:ro
+                  - /var/lib/docker/containers:/var/lib/docker/containers:ro
+                  - /var/run/docker.sock:/var/run/docker.sock:ro
+                command: -config.file=/etc/promtail/promtail-config.yml -config.expand-env=true
+                environment:
+                  - MONITOR_IP=${MONITOR_IP}
+                  - HOSTNAME=${HOSTNAME}
+                restart: always
+            EOF
+            
+            # 4. Create a template .env file if it doesn't exist yet
+            if [ ! -f /var/www/fintra/.env ]; then
+              echo "Creating template /var/www/fintra/.env file. Please fill in actual keys on the VM host!"
+              cat << 'ENV_EOF' > /var/www/fintra/.env
+            JWT_SECRET_KEY=generate_a_secure_random_key_here
+            JWT_TOKEN_SECRET=generate_another_secure_key_here
+            RESEND_API_KEY=your_resend_api_key
+            SENDER_EMAIL=noreply@fintra.app
+            GEMINI_API_KEY=your_google_generative_ai_key
+            TELEGRAM_BOT_API=your_telegram_bot_token_optional
+            ENV_EOF
+            fi
+            
+            # 5. Authenticate Docker with GHCR on the target VM
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # 6. Pull latest images and restart containers
+            cd /var/www/fintra
+            export MONITOR_IP
+            export HOSTNAME=$(hostname)
+            docker compose pull
+            docker compose up -d
+            
+            # 7. Clean up unused/dangling Docker images to save space
+            docker image prune -f
+            
+            echo "Deployment completed successfully on App Node!"

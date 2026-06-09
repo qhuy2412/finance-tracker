@@ -8,10 +8,12 @@ REST API for the FinTra personal finance management app. Built with Express v5 +
 - **Framework**: Express v5
 - **Database**: MySQL 8 (raw SQL, mysql2 — no ORM)
 - **Auth**: JWT (httpOnly cookie) + bcrypt
-- **AI Chatbot**: Google Generative AI — Gemma 4 (agentic loop)
+- **AI Chatbot**: Google Generative AI — ReAct Agent Loop (Gemini 2.5 Flash)
 - **Bill Scanning**: Google Generative AI (Gemini)
+- **Scheduler**: node-cron (background cron worker processes)
 - **Telegram Bot**: node-telegram-bot-api
 - **Email**: Resend + Nodemailer
+- **Logging**: JSONL activity logging + human-readable chatbot trace log
 - **Dev**: nodemon
 
 ## Installation
@@ -27,21 +29,32 @@ Create `.env`:
 PORT=9999
 NODE_ENV=development
 
+# Database
 DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=your_password
 DB_NAME=fintra_db
+DB_PORT=3306
+DB_SSL=false
 
+# Auth
 JWT_SECRET=your_jwt_secret_key
 JWT_EXPIRE=7d
 
+# Email (Resend)
 RESEND_API_KEY=your_resend_api_key
 SENDER_EMAIL=noreply@fintra.app
 
+# AI
 GEMINI_API_KEY=your_google_generative_ai_key
 
-# Optional — omit to disable Telegram bot
+# Telegram Bot (optional)
 TELEGRAM_BOT_API=your_telegram_bot_token
+
+# Background Scheduler (optional)
+DAILY_ALERT_HOUR=21
+WEEKLY_REPORT_DAY=0
+WEEKLY_REPORT_HOUR=20
 ```
 
 ## Scripts
@@ -56,46 +69,73 @@ npm start      # Production server
 ```
 backend/
 ├── config/
-│   └── db.js                      # MySQL connection pool
+│   ├── db.js                      # MySQL connection pool & client connection test
+│   └── schema.sql                 # Complete MySQL schema & seed categories
 ├── controller/                    # Request/response handlers
-│   ├── authController.js
-│   ├── walletController.js
-│   ├── transactionController.js
-│   ├── budgetController.js
-│   ├── debtController.js
-│   ├── savingController.js
-│   ├── transferController.js
-│   ├── billController.js
-│   ├── categoryController.js
-│   ├── dashboardController.js
-│   ├── chatControllerV3.js        # AI chatbot — agentic loop
-│   └── telegramController.js      # Telegram bot handler
+│   ├── authController.js          # Auth operations & OTP checks
+│   ├── walletController.js        # Wallet CRUD
+│   ├── transactionController.js   # Transaction CRUD & filter
+│   ├── budgetController.js        # Budget CRUD & progress checks
+│   ├── debtController.js          # Debt tracking operations
+│   ├── savingController.js        # Saving goal allocations
+│   ├── transferController.js      # Internal transfer operations
+│   ├── billController.js          # AI bill OCR scanning controller
+│   ├── categoryController.js      # Category listing & creation
+│   ├── dashboardController.js     # Unified financial metrics & stats
+│   ├── chatControllerV3.js        # AI chatbot ReAct loop controller
+│   ├── telegramController.js      # Telegram bot update handlers
+│   ├── notificationController.js  # Notifications retrieval and read status
+│   └── reportController.js        # Weekly reports fetching API
 ├── middleware/
-│   └── authMiddleware.js          # JWT verification
-├── model/                         # Raw SQL query functions
-│   ├── userModel.js
-│   ├── walletModel.js
-│   ├── transactionModel.js
-│   ├── budgetModel.js
-│   ├── debtModel.js
-│   ├── savingModel.js             # ⚠️ Complex withdrawal logic
-│   ├── transferModel.js
-│   ├── categoryModel.js
-│   ├── chatModel.js
-│   └── telegramModel.js
+│   ├── authMiddleware.js          # JWT authentication checks & cookie extraction
+│   └── rateLimit.js               # Rate limiting middleware for sensitive routes
+├── model/                         # Raw SQL query functions (no ORM)
+│   ├── userModel.js               # Users DB interactions
+│   ├── walletModel.js             # Wallets DB interactions
+│   ├── transactionModel.js        # Transactions DB interactions
+│   ├── budgetModel.js             # Budgets DB interactions
+│   ├── debtModel.js               # Debts DB interactions
+│   ├── savingModel.js             # Savings DB interactions (proportional withdrawals)
+│   ├── transferModel.js           # Transfers DB interactions
+│   ├── categoryModel.js           # Categories DB interactions
+│   ├── chatModel.js               # Chat sessions & messages DB interactions
+│   ├── telegramModel.js           # Telegram account mapping queries
+│   ├── notificationModel.js       # Notification persistence models
+│   └── weeklyReportModel.js       # Weekly reports JSON storage models
 ├── router/                        # Express route definitions
-├── services/                      # Business logic & external services
-│   ├── agentServiceV3.js          # Agentic ReAct loop (Google GenAI)
-│   ├── chatService.js             # Shared chat processor (web + Telegram)
-│   ├── financeService.js          # Core finance calculations
-│   └── telegramLinkService.js     # Token-based account linking
+│   ├── authRoute.js
+│   ├── walletRoute.js
+│   ├── transactionRoute.js
+│   ├── transferRoute.js
+│   ├── budgetRoute.js
+│   ├── savingRoute.js
+│   ├── debtRoute.js
+│   ├── categoryRoute.js
+│   ├── dashboardRoute.js
+│   ├── chatRoute.js
+│   ├── billRoute.js
+│   ├── telegramRoute.js
+│   ├── notificationRoute.js       # /api/notifications routing
+│   └── reportRoute.js             # /api/reports routing
+├── services/                      # Business logic & external integrations
+│   ├── agentServiceV3.js          # Web chatbot ReAct loop with Gemini
+│   ├── chatService.js             # Shared chat process logic (web + telegram)
+│   ├── financeService.js          # Specialized budget progress calculations
+│   ├── telegramLinkService.js     # Token verification for account linking
+│   ├── schedulerService.js        # node-cron initialization & job registration
+│   └── notificationAgentService.js# Daily alert and weekly Gemini ReAct report generation
 ├── utils/
-│   ├── agentPromptV3.js           # AI system prompt builder
-│   ├── agentToolsV3.js            # Tool definitions + executors
-│   ├── chatFormatters.js          # Shared message formatters (DRY)
-│   ├── sqlValidator.js            # SQL security: SELECT-only, table whitelist
-│   └── promptsV2.js               # Shared prompt helpers, ALLOWED_TABLES
-└── server.js                      # Entry point
+│   ├── agentPromptV3.js           # Chatbot persona system prompt
+│   ├── agentToolsV3.js            # Chatbot database access tool declarations
+│   ├── chatFormatters.js          # Shared Markdown formatters
+│   ├── emailService.js            # Resend OTP sender service
+│   ├── logger.js                  # User actions and chatbot cost/trace logger
+│   ├── notificationAgentPrompt.js # Weekly report writer LLM system instructions
+│   ├── notificationAgentTools.js  # Weekly report database access tool declarations
+│   ├── prompts.js                 # Shared LLM instructions
+│   ├── promptsV2.js               # Database schema prompt helper & tables whitelist
+│   └── sqlValidator.js            # Strict SQL SELECT-only validator
+└── server.js                      # App entry point, cron boot, Telegram hook mapping
 ```
 
 ## API Endpoints
@@ -196,7 +236,35 @@ GET    /status          Check if account is linked
 POST   /webhook         Telegram bot webhook (internal)
 ```
 
-## Key Rules
+### Notifications — `/api/notifications`
+```
+GET    /                List all notifications
+GET    /unread-count    Get unread notification count
+PATCH  /read-all        Mark all notifications as read
+PATCH  /:id/read        Mark a notification as read
+```
+
+### Reports — `/api/reports`
+```
+GET    /weekly          Get weekly financial report with AI summary (offset query param)
+```
+
+## 🗓 Background Scheduler (Cron Jobs)
+
+FinTra includes an automated background cron scheduler (`schedulerService.js`) initialized upon backend server start. It registers two core background tasks (running in the `Asia/Ho_Chi_Minh` timezone):
+1. **Daily Transaction Alert** (`checkMissingTransactions`): Runs daily at `DAILY_ALERT_HOUR` (default: 21:00). It queries the transaction database. If a user has not logged any transaction for the current day, it generates a `MISSING_TRANSACTION` alert notification.
+2. **Weekly Financial Report** (`runWeeklyReports`): Runs weekly at `WEEKLY_REPORT_DAY` / `WEEKLY_REPORT_HOUR` (default: Sunday at 20:00). This task runs a Gemini 2.5 Flash agent loop for each user in parallel batches. The agent analyzes the user's weekly income/expense totals, budget limits, savings goals, and debts due soon, writes a JSON structured weekly report, and appends a personalized AI advisory feedback comment.
+
+**Advisory Locking**: Both background cron jobs utilize MySQL advisory locks (`fintra_cron_daily_alert` and `fintra_cron_weekly_report`) using a dedicated database connection to ensure jobs only execute on a single server instance in clustered or containerized deployments.
+
+## 📝 Logging & Diagnostics System
+
+All backend activities and chatbot traces are tracked via a custom logging system (`utils/logger.js`) in `backend/logs/`:
+- **User Activity (`user_activity.log`)**: Logged in JSONL format. Records user actions (e.g. `LOGIN`, `CREATE_TRANSACTION`, `DELETE_BUDGET`), complete with client IP address (trusts proxy headers) and user-agent.
+- **Chatbot Activity (`chatbot_agent.log`)**: Logged in JSONL format. Stores chatbot session messaging data, execution response time, input/output token count usage, and chatbot USD cost estimations based on Gemini token pricing.
+- **Chatbot Traces (`chatbot_trace.log`)**: Human-readable trace log depicting the chatbot's ReAct agent loops step-by-step (e.g. what tools were called, args sent, SQL queries executed, and raw database responses returned).
+
+## 🛠 Key Rules
 
 ### Ownership
 Every query touching user data must filter by `user_id`:
@@ -227,18 +295,24 @@ The withdrawal logic in `savingModel.js` is complex — users can only withdraw 
 { message: 'Human-readable error description' }
 ```
 
-### Environment Variables
+## ⚙️ Environment Variables
 
-| Variable | Description | Required |
-|---|---|---|
-| `PORT` | Server port | No (default: 9999) |
-| `DB_HOST` | MySQL host | Yes |
-| `DB_USER` | Database user | Yes |
-| `DB_PASSWORD` | Database password | Yes |
-| `DB_NAME` | Database name | Yes |
-| `JWT_SECRET` | JWT signing key | Yes |
-| `JWT_EXPIRE` | Token expiry | No (default: 7d) |
-| `RESEND_API_KEY` | Email service key | Yes |
-| `SENDER_EMAIL` | From email address | Yes |
-| `GEMINI_API_KEY` | Google Generative AI key | Yes |
-| `TELEGRAM_BOT_API` | Telegram bot token | No (disables bot if absent) |
+| Variable | Description | Required | Default |
+|---|---|---|---|
+| `PORT` | Backend server port | No | `9999` |
+| `NODE_ENV` | Environment mode (`development` / `production`) | No | `development` |
+| `DB_HOST` | MySQL database host | Yes | - |
+| `DB_USER` | MySQL database username | Yes | - |
+| `DB_PASS` | MySQL database password | Yes | - |
+| `DB_NAME` | MySQL database name | Yes | - |
+| `DB_PORT` | MySQL database port | No | `3306` |
+| `DB_SSL` | Enable SSL for MySQL connection (`true` / `false`) | No | `false` |
+| `JWT_SECRET_KEY` | JWT signature secret key for access token | Yes | - |
+| `JWT_TOKEN_SECRET` | JWT signature secret key for refresh token | Yes | - |
+| `RESEND_API_KEY` | Email service (Resend) API key | Yes | - |
+| `SENDER_EMAIL` | From email sender address for OTP emails | Yes | - |
+| `GEMINI_API_KEY` | Google Generative AI (Gemini) API key | Yes | - |
+| `TELEGRAM_BOT_API` | Telegram Bot API authorization token | No | `(Disabled if omitted)` |
+| `DAILY_ALERT_HOUR` | Daily transaction check hour (0-23, VN time) | No | `21` |
+| `WEEKLY_REPORT_DAY` | Weekly report day of week (0=Sunday ... 6=Saturday) | No | `0` (Sunday) |
+| `WEEKLY_REPORT_HOUR` | Weekly report generate hour (0-23, VN time) | No | `20` |

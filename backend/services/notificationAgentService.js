@@ -10,6 +10,7 @@
 
 const { v4: uuidv4 } = require('uuid');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const mysql = require('mysql2/promise');
 const db = require('../config/db');
 const Notification = require('../model/notificationModel');
 const { toolDeclarations, executeTool } = require('../utils/notificationAgentTools');
@@ -19,6 +20,25 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const MODEL = 'gemini-2.5-flash';
 const MAX_ITERATIONS = 10;
 const WEEKLY_CONCURRENCY = 5;
+
+/**
+ * Creates a dedicated connection for advisory locking.
+ * This is closed at the end to guarantee MySQL releases the lock,
+ * and avoids reusing lock-tainted connections in the connection pool.
+ */
+const createLockConnection = async () => {
+  return mysql.createConnection({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.DB_NAME,
+    port: parseInt(process.env.DB_PORT, 10) || 3306,
+    ssl: process.env.DB_SSL === 'true' ? {
+      minVersion: 'TLSv1.2',
+      rejectUnauthorized: true,
+    } : null,
+  });
+};
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -55,7 +75,21 @@ const getWeekBounds = () => {
  * For each user with no transaction today → create MISSING_TRANSACTION notification.
  */
 const checkMissingTransactions = async () => {
+  let lockConn;
   try {
+    lockConn = await createLockConnection();
+    const [[{ lockResult }]] = await lockConn.execute(
+      'SELECT GET_LOCK(?, 0) AS lockResult',
+      ['fintra_cron_daily_alert']
+    );
+
+    if (lockResult !== 1) {
+      console.log('[NotificationAgent] Daily check already running or locked on another VM/instance. Skipping.');
+      await lockConn.end().catch(() => {});
+      return;
+    }
+
+    console.log('[NotificationAgent] Daily check lock acquired. Running check...');
     const [users] = await db.execute('SELECT id FROM users');
 
     for (const user of users) {
@@ -85,6 +119,15 @@ const checkMissingTransactions = async () => {
     console.log('[NotificationAgent] Daily check completed.');
   } catch (err) {
     console.error('[NotificationAgent] Daily check error:', err.message);
+  } finally {
+    if (lockConn) {
+      try {
+        await lockConn.execute('SELECT RELEASE_LOCK(?)', ['fintra_cron_daily_alert']);
+      } catch (releaseErr) {
+        console.error('[NotificationAgent] Failed to release daily check lock:', releaseErr.message);
+      }
+      await lockConn.end().catch(() => {});
+    }
   }
 };
 
@@ -161,7 +204,21 @@ const runFinancialAdvisorLoop = async (userId) => {
 // ─── Weekly Reports — all users, concurrent batches ──────────────────────────
 
 const runWeeklyReports = async () => {
+  let lockConn;
   try {
+    lockConn = await createLockConnection();
+    const [[{ lockResult }]] = await lockConn.execute(
+      'SELECT GET_LOCK(?, 0) AS lockResult',
+      ['fintra_cron_weekly_report']
+    );
+
+    if (lockResult !== 1) {
+      console.log('[NotificationAgent] Weekly reports already running or locked on another VM/instance. Skipping.');
+      await lockConn.end().catch(() => {});
+      return;
+    }
+
+    console.log('[NotificationAgent] Weekly reports lock acquired. Running reports...');
     const [users] = await db.execute('SELECT id FROM users');
 
     // Process in batches of WEEKLY_CONCURRENCY to avoid overwhelming DB + Gemini API
@@ -177,6 +234,15 @@ const runWeeklyReports = async () => {
     console.log('[NotificationAgent] Weekly reports completed.');
   } catch (err) {
     console.error('[NotificationAgent] Weekly reports error:', err.message);
+  } finally {
+    if (lockConn) {
+      try {
+        await lockConn.execute('SELECT RELEASE_LOCK(?)', ['fintra_cron_weekly_report']);
+      } catch (releaseErr) {
+        console.error('[NotificationAgent] Failed to release weekly reports lock:', releaseErr.message);
+      }
+      await lockConn.end().catch(() => {});
+    }
   }
 };
 

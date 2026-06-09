@@ -36,7 +36,7 @@ jobs:
           envs: REPO_OWNER_LOWER,REPO_NAME_LOWER
           script: |
             # 1. Prepare application directory
-            sudo mkdir -p /var/www/fintra
+            sudo mkdir -p /var/www/fintra/logs
             sudo chown -R $USER:$USER /var/www/fintra
             
             # 2. Write the docker-compose.prod.yml content dynamically to the server
@@ -48,6 +48,8 @@ jobs:
                 restart: always
                 ports:
                   - "9999:9999"
+                volumes:
+                  - /var/www/fintra/logs:/app/logs
                 env_file:
                   - /var/www/fintra/.env
                 environment:

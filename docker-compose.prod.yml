@@ -6,6 +6,8 @@ services:
     restart: always
     ports:
       - "9999:9999"
+    volumes:
+      - /var/www/fintra/logs:/app/logs
     # Load all environment variables securely from the host VM's local env file
     env_file:
       - /var/www/fintra/.env

@@ -38,7 +38,7 @@ npm run lint     # ESLint check
 ```
 frontend/src/
 ├── components/
-│   ├── common/          # Layout, Header, Sidebar, ChatWidget
+│   ├── common/          # Layout, Header, Sidebar, ChatWidget, NotificationBell
 │   └── ui/              # Button, Input, Card, Label, Modal (shadcn/ui)
 ├── pages/
 │   ├── auth/            # Login, Register, OTP verification
@@ -49,6 +49,7 @@ frontend/src/
 │   ├── budget/          # Budget planning
 │   ├── saving/          # Savings goals
 │   ├── debt/            # Debt tracking
+│   ├── reports/         # Weekly financial analysis dashboards
 │   └── settings/        # Account settings, Telegram linking
 ├── services/
 │   ├── api.js           # Axios instance (baseURL, cookie, interceptors)
@@ -62,7 +63,9 @@ frontend/src/
 │   ├── category.service.js
 │   ├── dashboard.service.js
 │   ├── chat.service.js
-│   └── telegram.service.js
+│   ├── telegram.service.js
+│   ├── notification.service.js # Notification retrieval API requests
+│   └── report.service.js       # Weekly reports API requests
 ├── store/               # Auth Context (React Context API)
 ├── utils/               # Helpers, formatters
 ├── lib/                 # cn() utility (clsx + tailwind-merge)
@@ -83,6 +86,7 @@ frontend/src/
 | `/budgets` | Budgets | Budget tracking per category |
 | `/savings` | Savings | Savings goals management |
 | `/debts` | Debts | Track money lent and borrowed |
+| `/reports` | Reports | Weekly AI financial advisor reports dashboard |
 | `/settings` | Settings | Account settings, Telegram bot linking |
 
 ## Development Rules

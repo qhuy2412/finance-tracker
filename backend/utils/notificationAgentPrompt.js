@@ -63,7 +63,7 @@ SCHEMA DATABASE (dùng khi viết SQL):
 -- debts: id, user_id, person_name, type ENUM('BORROW','LEND'), amount, paid_amount, status ENUM('UNPAID','PAID'), due_date, note
 -- budgets: id, user_id, category_id, period DATE, amount
 -- saving_goals: id, user_id, name, target_amount, current_amount, deadline, status
--- saving_contributions: id, saving_goal_id, wallet_id, amount, type ENUM('contribute','withdraw')
+-- saving_transactions: id, saving_id, wallet_id, type ENUM('DEPOSIT','WITHDRAW'), amount, note, created_at
 
 QUY TẮC SQL (bắt buộc):
 - CHỈ dùng SELECT, KHÔNG INSERT/UPDATE/DELETE.

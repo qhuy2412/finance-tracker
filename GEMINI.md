@@ -182,7 +182,7 @@ categories           — id, user_id (FK, NULL = system), name, type (income/exp
 transactions         — id, user_id, wallet_id, category_id, amount, type, note, transaction_date
 transfers            — id, user_id, from_wallet_id, to_wallet_id, amount, note, transfer_date
 saving_goals         — id, user_id, name, target_amount, current_amount, deadline, status
-saving_contributions — id, saving_goal_id, wallet_id, amount, type (contribute/withdraw)
+saving_transactions  — id, saving_id, wallet_id, amount, type (DEPOSIT/WITHDRAW)
 budgets              — id, user_id, category_id, amount, period, start_date, end_date
 debts                — id, user_id, name, amount, type (lend/borrow), due_date, status
 chat_sessions        — id, user_id, title, created_at, updated_at

@@ -10,7 +10,6 @@
 
 const { v4: uuidv4 } = require('uuid');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const mysql = require('mysql2/promise');
 const db = require('../config/db');
 const Notification = require('../model/notificationModel');
 const { toolDeclarations, executeTool } = require('../utils/notificationAgentTools');
@@ -22,22 +21,24 @@ const MAX_ITERATIONS = 10;
 const WEEKLY_CONCURRENCY = 5;
 
 /**
- * Creates a dedicated connection for advisory locking.
- * This is closed at the end to guarantee MySQL releases the lock,
- * and avoids reusing lock-tainted connections in the connection pool.
+ * Attempts to claim a cron job slot for today using an atomic INSERT.
+ * Uses UNIQUE(job_name, run_date) constraint — if another instance already
+ * inserted for today, the INSERT is silently ignored and we return false.
+ *
+ * This is reliable across multi-instance / ProxySQL setups, unlike
+ * GET_LOCK() which is session-scoped to a single MySQL server node.
+ *
+ * @param {string} jobName - Unique identifier for the cron job
+ * @returns {Promise<boolean>} true if this instance won the slot, false if already claimed
  */
-const createLockConnection = async () => {
-  return mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME,
-    port: parseInt(process.env.DB_PORT, 10) || 3306,
-    ssl: process.env.DB_SSL === 'true' ? {
-      minVersion: 'TLSv1.2',
-      rejectUnauthorized: true,
-    } : null,
-  });
+const claimCronSlot = async (jobName) => {
+  const [result] = await db.execute(
+    'INSERT IGNORE INTO cron_run_log (job_name, run_date) VALUES (?, CURDATE())',
+    [jobName]
+  );
+  // affectedRows = 1 → this instance inserted the row (winner)
+  // affectedRows = 0 → row already exists (another instance claimed it)
+  return result.affectedRows === 1;
 };
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -75,22 +76,14 @@ const getWeekBounds = () => {
  * For each user with no transaction today → create MISSING_TRANSACTION notification.
  */
 const checkMissingTransactions = async () => {
-  let lockConn;
-  let lockAcquired = false;
   try {
-    lockConn = await createLockConnection();
-    const [[{ lockResult }]] = await lockConn.execute(
-      'SELECT GET_LOCK(?, 0) AS lockResult',
-      ['fintra_cron_daily_alert']
-    );
-
-    if (lockResult !== 1) {
-      console.log('[NotificationAgent] Daily check already running or locked on another VM/instance. Skipping.');
+    const claimed = await claimCronSlot('daily_alert');
+    if (!claimed) {
+      console.log('[NotificationAgent] Daily check already claimed by another instance today. Skipping.');
       return;
     }
 
-    lockAcquired = true;
-    console.log('[NotificationAgent] Daily check lock acquired. Running check...');
+    console.log('[NotificationAgent] Daily check slot claimed. Running check...');
     const [users] = await db.execute('SELECT id FROM users');
 
     for (const user of users) {
@@ -120,17 +113,6 @@ const checkMissingTransactions = async () => {
     console.log('[NotificationAgent] Daily check completed.');
   } catch (err) {
     console.error('[NotificationAgent] Daily check error:', err.message);
-  } finally {
-    if (lockConn) {
-      if (lockAcquired) {
-        try {
-          await lockConn.execute('SELECT RELEASE_LOCK(?)', ['fintra_cron_daily_alert']);
-        } catch (releaseErr) {
-          console.error('[NotificationAgent] Failed to release daily check lock:', releaseErr.message);
-        }
-      }
-      await lockConn.end().catch(() => {});
-    }
   }
 };
 
@@ -207,22 +189,14 @@ const runFinancialAdvisorLoop = async (userId) => {
 // ─── Weekly Reports — all users, concurrent batches ──────────────────────────
 
 const runWeeklyReports = async () => {
-  let lockConn;
-  let lockAcquired = false;
   try {
-    lockConn = await createLockConnection();
-    const [[{ lockResult }]] = await lockConn.execute(
-      'SELECT GET_LOCK(?, 0) AS lockResult',
-      ['fintra_cron_weekly_report']
-    );
-
-    if (lockResult !== 1) {
-      console.log('[NotificationAgent] Weekly reports already running or locked on another VM/instance. Skipping.');
+    const claimed = await claimCronSlot('weekly_report');
+    if (!claimed) {
+      console.log('[NotificationAgent] Weekly reports already claimed by another instance today. Skipping.');
       return;
     }
 
-    lockAcquired = true;
-    console.log('[NotificationAgent] Weekly reports lock acquired. Running reports...');
+    console.log('[NotificationAgent] Weekly reports slot claimed. Running reports...');
     const [users] = await db.execute('SELECT id FROM users');
 
     // Process in batches of WEEKLY_CONCURRENCY to avoid overwhelming DB + Gemini API
@@ -238,17 +212,6 @@ const runWeeklyReports = async () => {
     console.log('[NotificationAgent] Weekly reports completed.');
   } catch (err) {
     console.error('[NotificationAgent] Weekly reports error:', err.message);
-  } finally {
-    if (lockConn) {
-      if (lockAcquired) {
-        try {
-          await lockConn.execute('SELECT RELEASE_LOCK(?)', ['fintra_cron_weekly_report']);
-        } catch (releaseErr) {
-          console.error('[NotificationAgent] Failed to release weekly reports lock:', releaseErr.message);
-        }
-      }
-      await lockConn.end().catch(() => {});
-    }
   }
 };
 

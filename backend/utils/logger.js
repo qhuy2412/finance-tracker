@@ -67,10 +67,11 @@ const logUserActivity = (userId, action, details, req = null) => {
     }
 };
 
-// Gemini 2.5 Flash pricing (USD per 1M tokens, ≤200k context)
+// Gemini 2.5 Flash pricing (USD per 1M tokens)
+// Source: https://ai.google.dev/gemini-api/docs/pricing (updated June 2026)
 const GEMINI_PRICING = {
-    inputPerMillion: 0.15,
-    outputPerMillion: 0.60,
+    inputPerMillion: 0.30,
+    outputPerMillion: 2.50,
 };
 
 /**

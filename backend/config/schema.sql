@@ -231,6 +231,20 @@ CREATE TABLE IF NOT EXISTS `weekly_reports` (
   CONSTRAINT `fk_weekly_reports_users` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- 17. Cron Run Log Table
+-- Ensures each background cron job runs on exactly one server instance per day.
+-- Uses UNIQUE(job_name, run_date) + INSERT IGNORE as an atomic DB-level lock,
+-- which works correctly across multi-instance / ProxySQL deployments
+-- unlike MySQL advisory locks (GET_LOCK) which are session-scoped.
+CREATE TABLE IF NOT EXISTS `cron_run_log` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `job_name` varchar(64) NOT NULL,
+  `run_date` date NOT NULL,
+  `started_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_job_run_date` (`job_name`, `run_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 -- ── SEED INITIAL SYSTEM CATEGORIES ──────────────────────────────────────────
 -- Insert default income/expense categories that are common for all users (user_id = NULL)
 -- Uses INSERT IGNORE to prevent duplicate primary key errors on subsequent startup

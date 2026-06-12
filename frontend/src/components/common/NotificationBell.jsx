@@ -32,7 +32,13 @@ const TYPE_META = {
 };
 
 const formatRelativeTime = (dateStr) => {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  // Ensure UTC parsing: append 'Z' if the string has no timezone indicator.
+  // Without this, browsers parse "2026-06-11 21:00:00" as local time, causing
+  // a 7-hour offset when the DB server is UTC and local timezone is +07:00.
+  const normalized = dateStr && !dateStr.endsWith('Z') && !dateStr.includes('+')
+    ? dateStr.replace(' ', 'T') + 'Z'
+    : dateStr;
+  const diff = Date.now() - new Date(normalized).getTime();
   const mins = Math.floor(diff / 60_000);
   if (mins < 1) return 'Vừa xong';
   if (mins < 60) return `${mins} phút trước`;

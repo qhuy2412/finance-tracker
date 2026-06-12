@@ -12,14 +12,16 @@ const Notification = {
   },
 
   /**
-   * Fetch the latest 30 notifications for a user (unread first, then by date desc).
+   * Fetch the latest 30 notifications for a user, sorted by newest first.
+   * is_read is NOT used as a sort key — marking read must not reorder items in UI.
    */
   getByUserId: async (userId) => {
     const [rows] = await db.execute(
-      `SELECT id, type, title, body, is_read, created_at
+      `SELECT id, type, title, body, is_read,
+              DATE_FORMAT(CONVERT_TZ(created_at, @@session.time_zone, '+00:00'), '%Y-%m-%dT%H:%i:%sZ') AS created_at
        FROM notifications
        WHERE user_id = ?
-       ORDER BY is_read ASC, created_at DESC
+       ORDER BY created_at DESC
        LIMIT 30`,
       [userId]
     );
@@ -65,7 +67,8 @@ const Notification = {
     const [[{ count }]] = await db.execute(
       `SELECT COUNT(*) AS count
        FROM notifications
-       WHERE user_id = ? AND type = ? AND DATE(created_at) = CURDATE()`,
+       WHERE user_id = ? AND type = ?
+         AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))`,
       [userId, type]
     );
     return Number(count) > 0;

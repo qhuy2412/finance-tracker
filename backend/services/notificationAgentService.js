@@ -95,7 +95,7 @@ const checkMissingTransactions = async () => {
       const [[{ txCount }]] = await db.execute(
         `SELECT COUNT(*) AS txCount
          FROM transactions
-         WHERE user_id = ? AND DATE(transaction_date) = CURDATE()`,
+         WHERE user_id = ? AND DATE(CONVERT_TZ(transaction_date, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))`,
         [userId]
       );
 

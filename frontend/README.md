@@ -49,7 +49,6 @@ frontend/src/
 │   ├── budget/          # Budget planning
 │   ├── saving/          # Savings goals
 │   ├── debt/            # Debt tracking
-│   ├── reports/         # Weekly financial analysis dashboards
 │   └── settings/        # Account settings, Telegram linking
 ├── services/
 │   ├── api.js           # Axios instance (baseURL, cookie, interceptors)
@@ -64,8 +63,7 @@ frontend/src/
 │   ├── dashboard.service.js
 │   ├── chat.service.js
 │   ├── telegram.service.js
-│   ├── notification.service.js # Notification retrieval API requests
-│   └── report.service.js       # Weekly reports API requests
+│   └── notification.service.js # Notification retrieval API requests
 ├── store/               # Auth Context (React Context API)
 ├── utils/               # Helpers, formatters
 ├── lib/                 # cn() utility (clsx + tailwind-merge)
@@ -86,7 +84,6 @@ frontend/src/
 | `/budgets` | Budgets | Budget tracking per category |
 | `/savings` | Savings | Savings goals management |
 | `/debts` | Debts | Track money lent and borrowed |
-| `/reports` | Reports | Weekly AI financial advisor reports dashboard |
 | `/settings` | Settings | Account settings, Telegram bot linking |
 
 ## Development Rules

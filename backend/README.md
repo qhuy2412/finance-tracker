@@ -84,8 +84,7 @@ backend/
 │   ├── dashboardController.js     # Unified financial metrics & stats
 │   ├── chatControllerV3.js        # AI chatbot ReAct loop controller
 │   ├── telegramController.js      # Telegram bot update handlers
-│   ├── notificationController.js  # Notifications retrieval and read status
-│   └── reportController.js        # Weekly reports fetching API
+│   └── notificationController.js  # Notifications retrieval and read status
 ├── middleware/
 │   ├── authMiddleware.js          # JWT authentication checks & cookie extraction
 │   └── rateLimit.js               # Rate limiting middleware for sensitive routes
@@ -100,8 +99,7 @@ backend/
 │   ├── categoryModel.js           # Categories DB interactions
 │   ├── chatModel.js               # Chat sessions & messages DB interactions
 │   ├── telegramModel.js           # Telegram account mapping queries
-│   ├── notificationModel.js       # Notification persistence models
-│   └── weeklyReportModel.js       # Weekly reports JSON storage models
+│   └── notificationModel.js       # Notification persistence models
 ├── router/                        # Express route definitions
 │   ├── authRoute.js
 │   ├── walletRoute.js
@@ -115,8 +113,7 @@ backend/
 │   ├── chatRoute.js
 │   ├── billRoute.js
 │   ├── telegramRoute.js
-│   ├── notificationRoute.js       # /api/notifications routing
-│   └── reportRoute.js             # /api/reports routing
+│   └── notificationRoute.js       # /api/notifications routing
 ├── services/                      # Business logic & external integrations
 │   ├── agentServiceV3.js          # Web chatbot ReAct loop with Gemini
 │   ├── chatService.js             # Shared chat process logic (web + telegram)
@@ -244,18 +241,13 @@ PATCH  /read-all        Mark all notifications as read
 PATCH  /:id/read        Mark a notification as read
 ```
 
-### Reports — `/api/reports`
-```
-GET    /weekly          Get weekly financial report with AI summary (offset query param)
-```
-
 ## 🗓 Background Scheduler (Cron Jobs)
 
 FinTra includes an automated background cron scheduler (`schedulerService.js`) initialized upon backend server start. It registers two core background tasks (running in the `Asia/Ho_Chi_Minh` timezone):
 1. **Daily Transaction Alert** (`checkMissingTransactions`): Runs daily at `DAILY_ALERT_HOUR` (default: 21:00). It queries the transaction database. If a user has not logged any transaction for the current day, it generates a `MISSING_TRANSACTION` alert notification.
 2. **Weekly Financial Report** (`runWeeklyReports`): Runs weekly at `WEEKLY_REPORT_DAY` / `WEEKLY_REPORT_HOUR` (default: Sunday at 20:00). This task runs a Gemini 2.5 Flash agent loop for each user in parallel batches. The agent analyzes the user's weekly income/expense totals, budget limits, savings goals, and debts due soon, writes a JSON structured weekly report, and appends a personalized AI advisory feedback comment.
 
-**Advisory Locking**: Both background cron jobs utilize MySQL advisory locks (`fintra_cron_daily_alert` and `fintra_cron_weekly_report`) using a dedicated database connection to ensure jobs only execute on a single server instance in clustered or containerized deployments.
+**Atomic Execution**: Both background cron jobs utilize atomic `INSERT IGNORE` queries into the `cron_run_log` table with a `UNIQUE(job_name, run_date)` constraint to ensure jobs only execute on a single server instance in clustered or containerized deployments.
 
 ## 📝 Logging & Diagnostics System
 

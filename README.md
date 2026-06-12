@@ -16,8 +16,7 @@ A personal finance management app: track wallets, transactions, budgets, debts, 
 | 🤖 AI Chatbot (Web) | Financial advice, query your data in natural language |
 | 📱 Telegram Bot | Same AI brain accessible via Telegram — link account from Settings |
 | 📈 Dashboard | Income/expense charts, balance overview, trends |
-| 🔔 Notifications | Daily transaction alerts, budget alerts, savings milestones, and weekly reports |
-| 📊 Weekly Reports | AI-generated financial insights, weekly breakdowns, and category charts |
+| 🔔 Notifications | Daily transaction alerts, budget alerts, savings milestones, and weekly AI financial reports |
 
 ## 🚀 Quick Start
 
@@ -118,8 +117,8 @@ FinTra/
 ├── frontend/           # React 19 (Vite + Tailwind CSS v4)
 │   └── src/
 │       ├── components/ # Shared UI components (NotificationBell, ChatWidget)
-│       ├── pages/      # Route-level page components (dashboard, reports, wallets)
-│       ├── services/   # Axios API wrappers (notification, report services)
+│       ├── pages/      # Route-level page components (dashboard, transactions, wallets)
+│       ├── services/   # Axios API wrappers (notification, wallet services)
 │       ├── store/      # React Context state management
 │       └── utils/      # Helpers
 ├── tests/              # Integration & exploratory tests (PinchTab)
@@ -146,7 +145,6 @@ FinTra/
 | `POST /api/savings/:id/disburse` | Disburse all funds back to wallets |
 | `GET/POST/PUT/DELETE /api/debts` | Debt tracking |
 | `GET/PATCH /api/notifications/*` | Notification fetch, unread counts, and reading status |
-| `GET /api/reports/weekly` | Get weekly financial report details & AI analysis |
 | `GET /api/dashboard` | Dashboard summary |
 | `POST /api/bills/scan` | AI bill scanning |
 | `GET/POST /api/chat/sessions` | Chat session management |
@@ -181,7 +179,7 @@ FinTra/
 - All SQL queries use **parameterized queries** (`?`) — no SQL injection
 - Every API endpoint enforces **ownership checks** (`WHERE user_id = ?`)
 - LLM-generated SQL is validated (SELECT only) before execution
-- Distributed lock synchronization via MySQL advisory locks (`GET_LOCK`) for background jobs
+- Distributed lock synchronization via MySQL unique constraints (`cron_run_log`) for background jobs
 - Rate limiting on auth routes (10 req / 15 min)
 - Payload limit: 10MB (for bill scan base64)
 

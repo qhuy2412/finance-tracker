@@ -259,6 +259,22 @@ INSERT INTO `scheduler_settings` (`job_name`, `cron_expression`) VALUES
   ('db_backup',     '0 3  * * *')    -- 03:00 every day (VN time)
 ON DUPLICATE KEY UPDATE `job_name` = `job_name`;  -- no-op: preserves admin-configured values
 
+CREATE TABLE IF NOT EXISTS `job_queue` (
+  `id`              INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  `job_type`        VARCHAR(50)   NOT NULL,
+  `payload`         JSON,
+  `status`          ENUM('PENDING','RUNNING','COMPLETED','FAILED') NOT NULL DEFAULT 'PENDING',
+  `error_message`   TEXT,
+  `run_at`          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `started_at`      DATETIME,
+  `completed_at`    DATETIME,
+  `notified`        TINYINT(1)    NOT NULL DEFAULT 0,  -- 1 = Telegram alert sent
+  `created_at`      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  -- Prevent duplicate backup jobs on the same calendar day
+  UNIQUE KEY `uq_job_type_date` (`job_type`, (DATE(`run_at`)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── SEED INITIAL SYSTEM CATEGORIES ──────────────────────────────────────────
 -- Insert default income/expense categories that are common for all users (user_id = NULL)
 -- Uses INSERT IGNORE to prevent duplicate primary key errors on subsequent startup

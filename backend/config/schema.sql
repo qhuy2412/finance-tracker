@@ -245,6 +245,20 @@ CREATE TABLE IF NOT EXISTS `cron_run_log` (
   UNIQUE KEY `uq_job_run_date` (`job_name`, `run_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS `scheduler_settings` (
+  `job_name`        VARCHAR(50)  NOT NULL,
+  `cron_expression` VARCHAR(50)  NOT NULL,
+  `updated_at`      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`job_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Seed default schedules (safe to re-run — ON DUPLICATE KEY keeps existing values intact)
+INSERT INTO `scheduler_settings` (`job_name`, `cron_expression`) VALUES
+  ('daily_alert',   '0 21 * * *'),   -- 21:00 every day (VN time)
+  ('weekly_report', '0 20 * * 0'),   -- Sunday 20:00 (VN time)
+  ('db_backup',     '0 3  * * *')    -- 03:00 every day (VN time)
+ON DUPLICATE KEY UPDATE `job_name` = `job_name`;  -- no-op: preserves admin-configured values
+
 -- ── SEED INITIAL SYSTEM CATEGORIES ──────────────────────────────────────────
 -- Insert default income/expense categories that are common for all users (user_id = NULL)
 -- Uses INSERT IGNORE to prevent duplicate primary key errors on subsequent startup

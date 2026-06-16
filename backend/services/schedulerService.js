@@ -11,9 +11,9 @@
 
 const cron = require('node-cron');
 const db = require('../config/db');
-const { checkMissingTransactions, runWeeklyReports } = require('./notificationAgentService');
-const { runDatabaseBackup } = require('./backupService');
+const { enqueueJob } = require('./queueService');
 const { runQueueMaintenance } = require('./queueMonitorService');
+const { startQueueWorker } = require('./queueWorkerService');
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -26,9 +26,9 @@ let redisSub = null;
 
 // Maps job_name (DB) → the actual async function to execute.
 const JOB_HANDLERS = {
-  daily_alert:   checkMissingTransactions,
-  weekly_report: runWeeklyReports,
-  db_backup:     runDatabaseBackup,
+  daily_alert:   () => enqueueJob('daily_alert'),
+  weekly_report: () => enqueueJob('weekly_report'),
+  db_backup:     () => enqueueJob('db_backup'),
 };
 
 // ── Core Scheduling ───────────────────────────────────────────────────────────
@@ -135,6 +135,7 @@ const initScheduler = async () => {
   await initRedisSync();
   await loadAndScheduleJobs();
   initQueueMonitor();
+  startQueueWorker();
 };
 
 module.exports = { initScheduler, broadcastReload };

@@ -20,26 +20,6 @@ const MODEL = 'gemini-2.5-flash';
 const MAX_ITERATIONS = 10;
 const WEEKLY_CONCURRENCY = 5;
 
-/**
- * Attempts to claim a cron job slot for today using an atomic INSERT.
- * Uses UNIQUE(job_name, run_date) constraint — if another instance already
- * inserted for today, the INSERT is silently ignored and we return false.
- *
- * This is reliable across multi-instance / ProxySQL setups, unlike
- * GET_LOCK() which is session-scoped to a single MySQL server node.
- *
- * @param {string} jobName - Unique identifier for the cron job
- * @returns {Promise<boolean>} true if this instance won the slot, false if already claimed
- */
-const claimCronSlot = async (jobName) => {
-  const [result] = await db.execute(
-    'INSERT IGNORE INTO cron_run_log (job_name, run_date) VALUES (?, CURDATE())',
-    [jobName]
-  );
-  // affectedRows = 1 → this instance inserted the row (winner)
-  // affectedRows = 0 → row already exists (another instance claimed it)
-  return result.affectedRows === 1;
-};
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -77,13 +57,7 @@ const getWeekBounds = () => {
  */
 const checkMissingTransactions = async () => {
   try {
-    const claimed = await claimCronSlot('daily_alert');
-    if (!claimed) {
-      console.log('[NotificationAgent] Daily check already claimed by another instance today. Skipping.');
-      return;
-    }
-
-    console.log('[NotificationAgent] Daily check slot claimed. Running check...');
+    console.log('[NotificationAgent] Running daily check...');
     const [users] = await db.execute('SELECT id FROM users');
 
     for (const user of users) {
@@ -190,13 +164,7 @@ const runFinancialAdvisorLoop = async (userId) => {
 
 const runWeeklyReports = async () => {
   try {
-    const claimed = await claimCronSlot('weekly_report');
-    if (!claimed) {
-      console.log('[NotificationAgent] Weekly reports already claimed by another instance today. Skipping.');
-      return;
-    }
-
-    console.log('[NotificationAgent] Weekly reports slot claimed. Running reports...');
+    console.log('[NotificationAgent] Running weekly reports...');
     const [users] = await db.execute('SELECT id FROM users');
 
     // Process in batches of WEEKLY_CONCURRENCY to avoid overwhelming DB + Gemini API

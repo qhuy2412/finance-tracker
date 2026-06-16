@@ -43,12 +43,25 @@ services:
       - RESEND_API_KEY=re_demo_key
       - SENDER_EMAIL=noreply@fintra.app
       - GEMINI_API_KEY=demo_gemini_key
+      # Connect to local Redis container for Pub/Sub
+      - REDIS_URL=redis://:fintra_redis_password@redis:6379
     depends_on:
       db:
         condition: service_healthy
     volumes:
       # Persist logs on host — survives container restarts
       - ./backend/logs:/app/logs
+
+  # 3. Redis Service (Pub/Sub for Scheduler Sync)
+  redis:
+    image: redis:7-alpine
+    container_name: fintra_redis_local
+    restart: always
+    command: redis-server --requirepass "fintra_redis_password"
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
 
   # 3. Frontend Service (React + Nginx)
   frontend:
@@ -66,5 +79,6 @@ services:
 
 volumes:
   mysql_data:
+  redis_data:
 
 

@@ -12,7 +12,8 @@
 const cron = require('node-cron');
 const db = require('../config/db');
 const { checkMissingTransactions, runWeeklyReports } = require('./notificationAgentService');
-// const { runDatabaseBackup } = require('./backupService'); // Wire up when backup service is ready
+const { runDatabaseBackup } = require('./backupService');
+const { runQueueMaintenance } = require('./queueMonitorService');
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ let redisSub = null;
 const JOB_HANDLERS = {
   daily_alert:   checkMissingTransactions,
   weekly_report: runWeeklyReports,
-  // db_backup:  runDatabaseBackup,
+  db_backup:     runDatabaseBackup,
 };
 
 // ── Core Scheduling ───────────────────────────────────────────────────────────
@@ -120,6 +121,12 @@ const broadcastReload = async () => {
   }
 };
 
+// Run queue maintenance once at startup, then every hour.
+const initQueueMonitor = () => {
+  runQueueMaintenance();
+  setInterval(runQueueMaintenance, 60 * 60 * 1000);
+};
+
 /**
  * Entrypoint called once on server startup.
  * Initialises Redis sync then loads all scheduled jobs from DB.
@@ -127,6 +134,7 @@ const broadcastReload = async () => {
 const initScheduler = async () => {
   await initRedisSync();
   await loadAndScheduleJobs();
+  initQueueMonitor();
 };
 
 module.exports = { initScheduler, broadcastReload };

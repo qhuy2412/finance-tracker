@@ -346,4 +346,26 @@ const unlinkAccount = async (req, res) => {
     }
 };
 
-module.exports = { initTelegramBot, generateLinkToken, getLinkStatus, unlinkAccount, handleWebhook };
+/**
+ * Sends a Telegram message to all admin-linked Telegram accounts.
+ * Used for system alerts (e.g. backup failure notifications).
+ */
+const sendTelegramToAdmins = async (text) => {
+    if (!bot) {
+        console.warn('[Telegram] Cannot send admin alert — bot is not initialized.');
+        return;
+    }
+    const adminUserIds = (process.env.ADMIN_USER_IDS || '').split(',').filter(Boolean);
+    for (const userId of adminUserIds) {
+        try {
+            const chatId = await TelegramAccount.getChatIdByUserId(userId);
+            if (chatId) {
+                await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+            }
+        } catch (err) {
+            console.error(`[Telegram] Failed to send admin alert to user ${userId}:`, err.message);
+        }
+    }
+};
+
+module.exports = { initTelegramBot, generateLinkToken, getLinkStatus, unlinkAccount, handleWebhook, sendTelegramToAdmins };

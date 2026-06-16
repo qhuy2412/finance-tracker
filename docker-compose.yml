@@ -44,7 +44,7 @@ services:
       - SENDER_EMAIL=noreply@fintra.app
       - GEMINI_API_KEY=demo_gemini_key
       # Connect to local Redis container for Pub/Sub
-      - REDIS_URL=redis://:fintra_redis_password@redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-fintra_redis_password}@redis:6379
     depends_on:
       db:
         condition: service_healthy
@@ -57,7 +57,7 @@ services:
     image: redis:7-alpine
     container_name: fintra_redis_local
     restart: always
-    command: redis-server --requirepass "fintra_redis_password"
+    command: redis-server --requirepass "${REDIS_PASSWORD:-fintra_redis_password}"
     ports:
       - "6379:6379"
     volumes:

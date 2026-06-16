@@ -20,6 +20,7 @@ const billRoute = require("./router/billRoute");
 const telegramRoute = require("./router/telegramRoute");
 const healthRoute = require("./router/healthRoute");
 const notificationRoute = require("./router/notificationRoute");
+const schedulerRoute = require("./router/schedulerRoute");
 const { initTelegramBot } = require("./controller/telegramController");
 const { initScheduler } = require("./services/schedulerService");
 
@@ -53,6 +54,7 @@ app.use("/api/bills", billRoute);
 app.use("/api/telegram", telegramRoute);
 app.use("/api/health", healthRoute);
 app.use("/api/notifications", notificationRoute);
+app.use("/api/admin/scheduler", schedulerRoute);
 
 // ── Global error handler ────────────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
@@ -70,7 +72,7 @@ const PORT = process.env.PORT || 9999;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     initTelegramBot();
-    initScheduler();
+    initScheduler().catch((err) => console.error('[Scheduler] Init failed:', err.message));
 });
 
 module.exports = app;

@@ -346,24 +346,31 @@ const unlinkAccount = async (req, res) => {
     }
 };
 
+let adminBot = null;
+
 /**
  * Sends a Telegram message to all admin-linked Telegram accounts.
  * Used for system alerts (e.g. backup failure notifications).
  */
 const sendTelegramToAdmins = async (text) => {
-    if (!bot) {
-        console.warn('[Telegram] Cannot send admin alert — bot is not initialized.');
+    const adminBotToken = process.env.TELEGRAM_ADMIN_BOT_API;
+    const adminChatIdStr = process.env.TELEGRAM_ADMIN_CHAT_ID;
+
+    if (!adminBotToken || !adminChatIdStr) {
+        console.warn('[Telegram] Cannot send admin alert — TELEGRAM_ADMIN_BOT_API or TELEGRAM_ADMIN_CHAT_ID is not configured.');
         return;
     }
-    const adminUserIds = (process.env.ADMIN_USER_IDS || '').split(',').filter(Boolean);
-    for (const userId of adminUserIds) {
+
+    if (!adminBot) {
+        adminBot = new TelegramBot(adminBotToken, { polling: false });
+    }
+
+    const chatIds = adminChatIdStr.split(',').filter(Boolean);
+    for (const chatId of chatIds) {
         try {
-            const chatId = await TelegramAccount.getChatIdByUserId(userId);
-            if (chatId) {
-                await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
-            }
+            await adminBot.sendMessage(chatId.trim(), text, { parse_mode: 'Markdown' });
         } catch (err) {
-            console.error(`[Telegram] Failed to send admin alert to user ${userId}:`, err.message);
+            console.error(`[Telegram] Failed to send admin alert to chat ${chatId}:`, err.message);
         }
     }
 };

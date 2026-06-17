@@ -23,30 +23,30 @@ const WEEKLY_CONCURRENCY = 5;
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
-const fmt = (d) => d.toISOString().slice(0, 10);
-
 const getWeekBounds = () => {
   const now = new Date();
-  // Monday of this week (VN: week starts Monday)
-  const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
-  const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - dayOfWeek + 1);
-  weekStart.setHours(0, 0, 0, 0);
+  // Shift by 7 hours to get the timezone-independent UTC representations of VN time
+  const vnNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  
+  const dayOfWeek = vnNow.getUTCDay() === 0 ? 7 : vnNow.getUTCDay();
+  const weekStart = new Date(vnNow);
+  weekStart.setUTCDate(vnNow.getUTCDate() - dayOfWeek + 1);
+  weekStart.setUTCHours(0, 0, 0, 0);
 
   const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
 
   const prevWeekStart = new Date(weekStart);
-  prevWeekStart.setDate(weekStart.getDate() - 7);
+  prevWeekStart.setUTCDate(weekStart.getUTCDate() - 7);
   const prevWeekEnd = new Date(weekStart);
-  prevWeekEnd.setDate(weekStart.getDate() - 1);
+  prevWeekEnd.setUTCDate(weekStart.getUTCDate() - 1);
 
   return {
-    today: fmt(now),
-    weekStart: fmt(weekStart),
-    weekEnd: fmt(weekEnd),
-    prevWeekStart: fmt(prevWeekStart),
-    prevWeekEnd: fmt(prevWeekEnd),
+    today: vnNow.toISOString().slice(0, 10),
+    weekStart: weekStart.toISOString().slice(0, 10),
+    weekEnd: weekEnd.toISOString().slice(0, 10),
+    prevWeekStart: prevWeekStart.toISOString().slice(0, 10),
+    prevWeekEnd: prevWeekEnd.toISOString().slice(0, 10),
   };
 };
 
@@ -58,35 +58,38 @@ const getWeekBounds = () => {
 const checkMissingTransactions = async () => {
   try {
     console.log('[NotificationAgent] Running daily check...');
-    const [users] = await db.execute('SELECT id FROM users');
+    const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    // Optimized batch query: find all users who have no transaction logged today
+    // and have not been sent a MISSING_TRANSACTION alert today.
+    const [users] = await db.execute(
+      `SELECT u.id
+       FROM users u
+       LEFT JOIN transactions t 
+         ON u.id = t.user_id 
+         AND t.transaction_date = ?
+       LEFT JOIN notifications n 
+         ON u.id = n.user_id 
+         AND n.type = 'MISSING_TRANSACTION' 
+         AND DATE(CONVERT_TZ(n.created_at, '+00:00', '+07:00')) = ?
+       WHERE t.id IS NULL AND n.id IS NULL`,
+      [todayStr, todayStr]
+    );
 
     for (const user of users) {
-      const userId = user.id;
-
-      const alreadySent = await Notification.hasToday(userId, 'MISSING_TRANSACTION');
-      if (alreadySent) continue;
-
-      const [[{ txCount }]] = await db.execute(
-        `SELECT COUNT(*) AS txCount
-         FROM transactions
-         WHERE user_id = ? AND DATE(CONVERT_TZ(transaction_date, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))`,
-        [userId]
+      await Notification.create(
+        uuidv4(),
+        user.id,
+        'MISSING_TRANSACTION',
+        '💸 Bạn chưa ghi giao dịch hôm nay',
+        'Hôm nay bạn chưa có giao dịch nào được ghi lại. Đừng quên cập nhật thu chi để theo dõi tài chính chính xác nhé!'
       );
-
-      if (Number(txCount) === 0) {
-        await Notification.create(
-          uuidv4(),
-          userId,
-          'MISSING_TRANSACTION',
-          '💸 Bạn chưa ghi giao dịch hôm nay',
-          'Hôm nay bạn chưa có giao dịch nào được ghi lại. Đừng quên cập nhật thu chi để theo dõi tài chính chính xác nhé!'
-        );
-      }
     }
 
     console.log('[NotificationAgent] Daily check completed.');
   } catch (err) {
     console.error('[NotificationAgent] Daily check error:', err.message);
+    throw err;
   }
 };
 
@@ -97,11 +100,11 @@ const checkMissingTransactions = async () => {
  * The LLM autonomously decides what to query and what to notify.
  */
 const runFinancialAdvisorLoop = async (userId) => {
-  // Skip if weekly report already sent today (prevents double-run on scheduler restart)
-  const alreadySent = await Notification.hasToday(userId, 'WEEKLY_REPORT');
-  if (alreadySent) return;
-
   const { today, weekStart, weekEnd, prevWeekStart, prevWeekEnd } = getWeekBounds();
+
+  // Skip if weekly report already sent today (prevents double-run on scheduler restart)
+  const alreadySent = await Notification.hasToday(userId, 'WEEKLY_REPORT', today);
+  if (alreadySent) return;
 
   const systemPrompt = getNotificationAgentPrompt(
     userId, today, weekStart, weekEnd, prevWeekStart, prevWeekEnd
@@ -180,6 +183,7 @@ const runWeeklyReports = async () => {
     console.log('[NotificationAgent] Weekly reports completed.');
   } catch (err) {
     console.error('[NotificationAgent] Weekly reports error:', err.message);
+    throw err;
   }
 };
 

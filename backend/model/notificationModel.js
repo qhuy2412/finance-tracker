@@ -59,17 +59,14 @@ const Notification = {
     );
   },
 
-  /**
-   * Check if a notification of the given type was already sent today.
-   * Used to prevent duplicate alerts on scheduler restart.
-   */
-  hasToday: async (userId, type) => {
+  hasToday: async (userId, type, todayStr) => {
+    const dateStr = todayStr || new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const [[{ count }]] = await db.execute(
       `SELECT COUNT(*) AS count
        FROM notifications
        WHERE user_id = ? AND type = ?
-         AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))`,
-      [userId, type]
+         AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) = ?`,
+      [userId, type, dateStr]
     );
     return Number(count) > 0;
   },

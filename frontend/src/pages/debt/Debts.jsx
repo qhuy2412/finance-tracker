@@ -70,16 +70,6 @@ export default function Debts() {
     }
   };
 
-  const fetchDebts = async () => {
-    try {
-      const data = await getDebts();
-      const sorted = (data || []).sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
-      setDebts(sorted);
-    } catch (error) {
-      console.error("Failed to fetch debts:", error);
-    }
-  };
-
   const handleDelete = async (id) => {
     setConfirmModal({ open: true, id });
   };

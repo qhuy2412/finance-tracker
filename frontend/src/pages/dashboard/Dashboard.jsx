@@ -187,7 +187,7 @@ export default function Dashboard() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className={`font-black \${amountClasses}`}>
+                        <p className={`font-black ${amountClasses}`}>
                           {sign}{fmtAmt(t.amount)}
                         </p>
                       </div>

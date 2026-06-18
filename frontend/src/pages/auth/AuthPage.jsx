@@ -33,7 +33,6 @@ function OtpInput({ value, onChange }) {
     const handleChange = (e, idx) => {
         const val = e.target.value.replace(/\D/g, "");
         if (!val) return;
-        const char = val[val.length - 1];
         const next = [...digits];
         // Fill from current index forward if pasting
         const chars = val.slice(0, 6 - idx);

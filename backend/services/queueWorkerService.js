@@ -61,6 +61,13 @@ const pollAndExecuteJobs = async () => {
     console.log(`[QueueWorker] Job "${job_type}" (ID: ${jobId}) completed successfully.`);
   } catch (err) {
     console.error(`[QueueWorker] Job execution failed:`, err.message);
+    if (connection) {
+      try {
+        await connection.rollback();
+        connection.release();
+      } catch (_) {}
+      connection = null;
+    }
     if (jobId) {
       try {
         await db.execute(
@@ -70,12 +77,6 @@ const pollAndExecuteJobs = async () => {
       } catch (dbErr) {
         console.error(`[QueueWorker] Failed to update job ${jobId} to FAILED:`, dbErr.message);
       }
-    }
-    if (connection) {
-      try {
-        await connection.rollback();
-        connection.release();
-      } catch (_) {}
     }
   }
 };

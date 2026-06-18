@@ -632,8 +632,6 @@ export default function Transactions() {
                 const available = Number(wallet.balance) - res;
                 const afterSpend = Number(wallet.balance) - Number(formData.amount);
                 if (afterSpend >= available) return null; // still within safe zone
-                const overAmount = available - afterSpend > 0 ? available - afterSpend : 0;
-                const eatInto = Math.min(Number(formData.amount), res) - Math.max(0, available - Number(wallet.balance) + Number(formData.amount));
                 const spendingIntoSavings = afterSpend < available;
                 return spendingIntoSavings ? (
                   <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm">

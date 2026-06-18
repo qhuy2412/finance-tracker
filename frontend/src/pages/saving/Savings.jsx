@@ -233,7 +233,7 @@ export default function Savings() {
     try {
       const data = await getSavingHistory(goal.id);
       setHistory(data || []);
-    } catch (e) {
+    } catch {
       toast.error("Không thể tải lịch sử!");
     } finally {
       setLoadingHistory(false);

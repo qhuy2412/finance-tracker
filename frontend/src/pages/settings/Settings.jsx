@@ -196,6 +196,7 @@ export default function Settings() {
                             { icon: MessageCircle, label: 'Chat AI tài chính' },
                             { icon: CheckCircle2, label: 'Ghi giao dịch nhanh' },
                             { icon: RefreshCw, label: 'Đồng bộ thời gian thực' },
+                        // eslint-disable-next-line no-unused-vars
                         ].map(({ icon: Icon, label }) => (
                             <div
                                 key={label}

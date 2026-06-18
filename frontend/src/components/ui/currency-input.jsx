@@ -24,8 +24,6 @@ export function CurrencyInput({
   required = false,
   autoFocus = false,
   id,
-  min,
-  max,
   ...rest
 }) {
   // Format a raw numeric string with thousand-separator dots (vi-VN style)
@@ -53,6 +51,7 @@ export function CurrencyInput({
       skipNextEffect.current = false;
       return;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDisplay(format(value));
   }, [value]);
 

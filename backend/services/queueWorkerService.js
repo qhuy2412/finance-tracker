@@ -27,6 +27,7 @@ const pollAndExecuteJobs = async () => {
     if (rows.length === 0) {
       await connection.commit();
       connection.release();
+      connection = null;
       return;
     }
 
@@ -40,6 +41,7 @@ const pollAndExecuteJobs = async () => {
     );
     await connection.commit();
     connection.release();
+    connection = null;
 
     console.log(`[QueueWorker] Claimed job "${job_type}" (ID: ${jobId}). Executing...`);
 

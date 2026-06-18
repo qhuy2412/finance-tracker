@@ -190,7 +190,87 @@ const logChatbotActivity = (userId, sessionId, userMessage, botResponse, steps, 
     }
 };
 
+/**
+ * Log weekly report agent conversation and internal ReAct tool execution steps.
+ * @param {string} userId
+ * @param {string} botResponse
+ * @param {Array}  steps - ReAct steps with toolCalls + observations
+ * @param {number} responseTimeMs
+ * @param {object|null} tokenUsage - { promptTokens, candidatesTokens, totalTokens }
+ */
+const logWeeklyReportActivity = (userId, botResponse, steps, responseTimeMs, tokenUsage = null) => {
+    const timestamp = new Date().toISOString();
+    const estimatedCostUSD = tokenUsage
+        ? estimateCost(tokenUsage.promptTokens, tokenUsage.candidatesTokens)
+        : null;
+
+    const logData = {
+        timestamp,
+        server: SERVER_ID,
+        userId: userId || 'anonymous',
+        botResponse,
+        steps: steps || [],
+        responseTimeMs,
+        tokenUsage: tokenUsage || null,
+        estimatedCostUSD,
+    };
+
+    // 1. Write JSONL to weekly_report_agent.log
+    writeToFile('weekly_report_agent.log', logData);
+
+    // 2. Write human-readable trace to weekly_report_trace.log
+    const divider = '─'.repeat(80);
+    const lines = [
+        divider,
+        `[${logData.timestamp}] WEEKLY REPORT | SERVER: ${logData.server} | USER: ${logData.userId}`,
+        `⏱  Response time: ${logData.responseTimeMs}ms`,
+        ...(logData.tokenUsage ? [
+            `🪙 Tokens — Input: ${logData.tokenUsage.promptTokens} | Output: ${logData.tokenUsage.candidatesTokens} | Total: ${logData.tokenUsage.totalTokens} | Est. cost: $${logData.estimatedCostUSD}`,
+        ] : []),
+        ``,
+    ];
+
+    if (logData.steps && logData.steps.length > 0) {
+        logData.steps.forEach((step) => {
+            lines.push(`  🔄 [Iteration ${step.iteration}]`);
+            step.toolCalls.forEach((tc) => {
+                lines.push(`    🔧 Tool call: ${tc.name}`);
+                lines.push(`       Args: ${JSON.stringify(tc.args, null, 0)}`);
+            });
+            step.observations.forEach((obs) => {
+                const resultStr = typeof obs.result === 'object'
+                    ? JSON.stringify(obs.result).slice(0, 500)
+                    : String(obs.result).slice(0, 500);
+                lines.push(`    📊 Result [${obs.toolName}]: ${resultStr}`);
+            });
+            lines.push('');
+        });
+    }
+
+    lines.push(`🤖 BOT: ${logData.botResponse}`);
+    lines.push('');
+
+    const traceEntry = lines.join('\n') + '\n';
+    const filePath = path.join(LOGS_DIR, 'weekly_report_trace.log');
+    fs.appendFile(filePath, traceEntry, (err) => {
+        if (err) console.error('[Logger Error] Failed to write weekly_report_trace.log:', err);
+    });
+
+    // 3. Stream to stdout for docker logs -f
+    if (IS_DEV) {
+        const colorServer = `\x1b[36m[${SERVER_ID}]\x1b[0m`;
+        const colorTime = `\x1b[33m${responseTimeMs}ms\x1b[0m`;
+        const tokenInfo = tokenUsage
+            ? `\x1b[90mTokens: ${tokenUsage.totalTokens} | Cost: $${estimatedCostUSD}\x1b[0m`
+            : '';
+        console.log(`[WeeklyReportAgent] ${colorServer} User: ${userId} | Time: ${colorTime} ${tokenInfo} | Steps: ${logData.steps.length}`);
+    } else {
+        console.log(JSON.stringify({ logType: 'WeeklyReportActivity', ...logData }));
+    }
+};
+
 module.exports = {
     logUserActivity,
-    logChatbotActivity
+    logChatbotActivity,
+    logWeeklyReportActivity
 };

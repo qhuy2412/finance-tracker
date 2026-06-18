@@ -14,6 +14,7 @@ const db = require('../config/db');
 const Notification = require('../model/notificationModel');
 const { toolDeclarations, executeTool } = require('../utils/notificationAgentTools');
 const { getNotificationAgentPrompt } = require('../utils/notificationAgentPrompt');
+const { logWeeklyReportActivity } = require('../utils/logger');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const MODEL = 'gemini-2.5-flash';
@@ -121,6 +122,11 @@ const runFinancialAdvisorLoop = async (userId) => {
   // Stateless — no history. Agent starts fresh each week.
   const chat = model.startChat({ history: [] });
 
+  const startTime = Date.now();
+  let totalPromptTokens = 0;
+  let totalCandidatesTokens = 0;
+  const steps = [];
+
   // Kick off the agent with a single trigger message
   console.log(`[NotificationAgent] Sending initial prompt to agent...`);
   let result = await chat.sendMessage(
@@ -128,6 +134,11 @@ const runFinancialAdvisorLoop = async (userId) => {
   );
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
+    if (result.response.usageMetadata) {
+      totalPromptTokens = result.response.usageMetadata.promptTokenCount || totalPromptTokens;
+      totalCandidatesTokens = result.response.usageMetadata.candidatesTokenCount || totalCandidatesTokens;
+    }
+
     console.log(`[NotificationAgent] Iteration ${i + 1}...`);
     console.log(`[NotificationAgent] Raw Response JSON:`, JSON.stringify(result.response, null, 2));
     const functionCalls = result.response.functionCalls();
@@ -138,9 +149,17 @@ const runFinancialAdvisorLoop = async (userId) => {
       break;
     }
 
+    const currentStep = {
+      iteration: i + 1,
+      toolCalls: [],
+      observations: []
+    };
+
     console.log(`[NotificationAgent] Agent requested ${functionCalls.length} tool calls:`, functionCalls.map(c => c.name));
     const toolResponseParts = [];
     for (const call of functionCalls) {
+      currentStep.toolCalls.push(call);
+
       console.log(`[NotificationAgent] Executing tool "${call.name}"...`);
       if (call.name === 'query_database') {
         console.log(`[NotificationAgent] SQL: ${call.args.sql}`);
@@ -150,15 +169,34 @@ const runFinancialAdvisorLoop = async (userId) => {
       
       const observation = await executeTool(call.name, call.args, userId);
       
+      currentStep.observations.push({ toolName: call.name, result: observation });
+
       console.log(`[NotificationAgent] Observation output:`, JSON.stringify(observation).slice(0, 300));
       toolResponseParts.push({
         functionResponse: { name: call.name, response: observation },
       });
     }
 
+    steps.push(currentStep);
+
     console.log(`[NotificationAgent] Sending observations to model...`);
     result = await chat.sendMessage(toolResponseParts);
   }
+
+  // Capture final tokens
+  if (result.response.usageMetadata) {
+    totalPromptTokens = result.response.usageMetadata.promptTokenCount || totalPromptTokens;
+    totalCandidatesTokens = result.response.usageMetadata.candidatesTokenCount || totalCandidatesTokens;
+  }
+
+  const responseTimeMs = Date.now() - startTime;
+  const botResponse = result.response.text() || '';
+
+  logWeeklyReportActivity(userId, botResponse, steps, responseTimeMs, {
+    promptTokens: totalPromptTokens,
+    candidatesTokens: totalCandidatesTokens,
+    totalTokens: totalPromptTokens + totalCandidatesTokens
+  });
 
   console.log(`[NotificationAgent] Agent completed for user ${userId.slice(0, 8)}...`);
 };

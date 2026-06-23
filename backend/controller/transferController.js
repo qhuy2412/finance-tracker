@@ -9,7 +9,7 @@ const transferMoney = async (req, res) => {
     try {
         const result = await financeService.createTransfer(userId, req.body);
 
-        logUserActivity(userId, 'TRANSFER_WALLET', `Chuyển khoản nội bộ số tiền: ${Number(amount).toLocaleString('vi-VN')} ₫ từ ví ${from_wallet_id} sang ví ${to_wallet_id}`, req);
+        logUserActivity(userId, 'TRANSFER_WALLET', 'Transfer funds between wallets', { from_wallet_id, to_wallet_id, amount }, req);
 
         return res.status(200).json(result);
     } catch (error) {

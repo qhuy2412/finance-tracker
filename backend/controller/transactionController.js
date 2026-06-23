@@ -37,7 +37,7 @@ const createNormalTransaction = async (req, res) => {
             note,
         });
 
-        logUserActivity(userId, 'CREATE_TRANSACTION', `Tạo giao dịch ${type === 'INCOME' ? 'Thu nhập' : 'Chi tiêu'} số tiền: ${Number(amount).toLocaleString('vi-VN')} ₫. Ghi chú: ${note || 'không có'}`, req);
+        logUserActivity(userId, 'CREATE_TRANSACTION', 'Create transaction', { wallet_id, type, amount, category_id, note }, req);
 
         return res.status(201).json(result);
     } catch (error) {
@@ -92,7 +92,7 @@ const deleteTransaction = async (req, res) => {
         
         await connection.commit();
 
-        logUserActivity(userId, 'DELETE_TRANSACTION', `Xóa giao dịch ${transaction.type === 'INCOME' ? 'Thu nhập' : 'Chi tiêu'} số tiền: ${Number(transaction.amount).toLocaleString('vi-VN')} ₫. Ghi chú cũ: ${transaction.note || 'không có'}`, req);
+        logUserActivity(userId, 'DELETE_TRANSACTION', 'Delete transaction', { transaction_id: id, wallet_id: transaction.wallet_id, type: transaction.type, amount: transaction.amount, note: transaction.note }, req);
 
         return res.status(200).json({ message: "Transaction deleted successfully!" });
     } catch (error) {
@@ -181,7 +181,7 @@ const updateTransaction = async (req, res) => {
         
         await connection.commit();
 
-        logUserActivity(userId, 'UPDATE_TRANSACTION', `Cập nhật giao dịch ${type === 'INCOME' ? 'Thu nhập' : 'Chi tiêu'} số tiền: ${Number(amount).toLocaleString('vi-VN')} ₫ (cũ: ${oldTransaction.type === 'INCOME' ? 'Thu nhập' : 'Chi tiêu'} ${Number(oldTransaction.amount).toLocaleString('vi-VN')} ₫). Ghi chú: ${note || 'không có'}`, req);
+        logUserActivity(userId, 'UPDATE_TRANSACTION', 'Update transaction details', { transaction_id: id, wallet_id, type, amount, old_type: oldTransaction.type, old_amount: oldTransaction.amount, note }, req);
 
         return res.status(200).json({ message: "Transaction updated successfully!" });
     } catch (error) {

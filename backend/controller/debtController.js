@@ -20,7 +20,7 @@ const createDebt = async (req, res) => {
     try {
         const result = await financeService.createDebt(userId, req.body);
 
-        logUserActivity(userId, 'CREATE_DEBT', `Tạo khoản nợ/cho vay: ${type === 'BORROW' ? 'Vay' : 'Cho vay'} đối tác "${person_name}" với số tiền: ${Number(amount).toLocaleString('vi-VN')} ₫`, req);
+        logUserActivity(userId, 'CREATE_DEBT', 'Create new debt or loan', { type, person_name, amount, wallet_id }, req);
 
         return res.status(201).json(result);
     } catch (error) {
@@ -99,7 +99,7 @@ const payDebt = async (req, res) => {
         );
         await connection.commit();
 
-        logUserActivity(userId, 'PAY_DEBT', `Thanh toán khoản nợ ID ${debtId} với số tiền: ${Number(pay_amount).toLocaleString('vi-VN')} ₫ từ ví ${wallet_id}`, req);
+        logUserActivity(userId, 'PAY_DEBT', 'Pay debt or loan', { debt_id: debtId, pay_amount, wallet_id }, req);
 
         return res.status(200).json({
             message: "Thanh toán nợ thành công!",
@@ -179,7 +179,7 @@ const deleteDebt = async (req, res) => {
 
         await connection.commit();
 
-        logUserActivity(userId, 'DELETE_DEBT', `Xóa khoản nợ ID ${debtId}`, req);
+        logUserActivity(userId, 'DELETE_DEBT', 'Delete debt record', { debt_id: debtId }, req);
 
         return res.status(200).json({
             message: "Debt deleted and wallet balance updated successfully!",

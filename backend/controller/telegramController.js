@@ -62,7 +62,7 @@ const handleLinkCommand = async (msg, match) => {
         // Reset session when account is newly linked
         telegramSessions.delete(chatId);
 
-        logUserActivity(userId, 'LINK_TELEGRAM', `Đã liên kết tài khoản Telegram (Chat ID: ${chatId}) qua bot`, null);
+        logUserActivity(userId, 'LINK_TELEGRAM', 'Linked Telegram account via bot', { telegram_chat_id: chatId });
 
         return bot.sendMessage(chatId,
             '✅ Đã liên kết tài khoản FinTra thành công!\n\nBây giờ bạn có thể hỏi mình bất cứ điều gì về tài chính của bạn. Thử hỏi: "Tôi có bao nhiêu tiền?" 💰'
@@ -85,7 +85,7 @@ const handleUnlinkCommand = async (msg) => {
         await TelegramAccount.unlinkByUserId(userId);
         telegramSessions.delete(chatId);
 
-        logUserActivity(userId, 'UNLINK_TELEGRAM', `Đã hủy liên kết tài khoản Telegram (Chat ID: ${chatId}) qua bot`, null);
+        logUserActivity(userId, 'UNLINK_TELEGRAM', 'Unlinked Telegram account via bot', { telegram_chat_id: chatId });
 
         return bot.sendMessage(chatId, '✅ Đã hủy liên kết tài khoản FinTra.')
             .catch(err => console.error('[Telegram] Unlink success alert failed:', err.message));
@@ -306,7 +306,7 @@ const generateLinkToken = (req, res) => {
     try {
         const token = telegramLinkService.generateLinkToken(req.user.id);
 
-        logUserActivity(req.user.id, 'GENERATE_TELEGRAM_LINK_TOKEN', 'Yêu cầu tạo mã liên kết tài khoản Telegram', req);
+        logUserActivity(req.user.id, 'GENERATE_TELEGRAM_LINK_TOKEN', 'Generate Telegram link token', null, req);
 
         return res.json({ token, expires_in_minutes: 10 });
     } catch (e) {
@@ -337,7 +337,7 @@ const unlinkAccount = async (req, res) => {
     try {
         await TelegramAccount.unlinkByUserId(req.user.id);
 
-        logUserActivity(req.user.id, 'UNLINK_TELEGRAM', 'Hủy liên kết tài khoản Telegram từ ứng dụng Web', req);
+        logUserActivity(req.user.id, 'UNLINK_TELEGRAM', 'Unlinked Telegram account from Web app', null, req);
 
         return res.json({ message: 'Đã hủy liên kết tài khoản Telegram.' });
     } catch (e) {

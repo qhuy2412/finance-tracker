@@ -10,7 +10,7 @@ const createSaving = async (req, res) => {
     try {
         const result = await financeService.createSaving(userId, req.body);
         
-        logUserActivity(userId, 'CREATE_SAVINGS', `Tạo mục tiêu tiết kiệm mới "${req.body.name}" với số tiền mục tiêu: ${Number(req.body.target_amount).toLocaleString('vi-VN')} ₫`, req);
+        logUserActivity(userId, 'CREATE_SAVINGS', 'Create new savings goal', { name: req.body.name, target_amount: req.body.target_amount }, req);
 
         return res.status(201).json(result);
     } catch (error) {
@@ -34,7 +34,7 @@ const deleteSaving = async (req, res) => {
     try {
         await Saving.deleteSaving(id, userId);
 
-        logUserActivity(userId, 'DELETE_SAVINGS', `Xóa mục tiêu tiết kiệm ID ${id}`, req);
+        logUserActivity(userId, 'DELETE_SAVINGS', 'Delete savings goal', { id }, req);
 
         res.status(200).json({ message: "Xóa mục tiêu tiết kiệm thành công!" });
     } catch (error) {
@@ -98,7 +98,7 @@ const depositSaving = async (req, res) => {
             connection.release();
         }
 
-        logUserActivity(userId, 'DEPOSIT_SAVINGS', `Gửi ${Number(add_amount).toLocaleString('vi-VN')} ₫ vào mục tiêu tiết kiệm "${goal.name}" từ ví ID ${wallet_id}`, req);
+        logUserActivity(userId, 'DEPOSIT_SAVINGS', 'Deposit money into savings goal', { saving_id: id, amount: add_amount, wallet_id }, req);
 
         res.status(200).json({ message: "Nạp tiền thành công!", current_amount: newAmount, status });
     } catch (error) {
@@ -150,7 +150,7 @@ const withdrawSaving = async (req, res) => {
             connection.release();
         }
 
-        logUserActivity(userId, 'WITHDRAW_SAVINGS', `Rút ${Number(withdraw_amount).toLocaleString('vi-VN')} ₫ từ mục tiêu tiết kiệm "${goal.name}" về ví ID ${wallet_id}`, req);
+        logUserActivity(userId, 'WITHDRAW_SAVINGS', 'Withdraw money from savings goal', { saving_id: id, amount: withdraw_amount, wallet_id }, req);
 
         res.status(200).json({ message: "Rút tiền thành công!", current_amount: newAmount, status });
     } catch (error) {
@@ -200,7 +200,7 @@ const disburseSaving = async (req, res) => {
 
             const totalDisbursed = contributions.reduce((s, c) => s + c.net_amount, 0);
 
-            logUserActivity(userId, 'DISBURSE_SAVINGS', `Giải ngân toàn bộ số tiền của mục tiêu tiết kiệm "${goal.name}" với tổng giá trị hoàn trả: ${totalDisbursed.toLocaleString('vi-VN')} ₫`, req);
+            logUserActivity(userId, 'DISBURSE_SAVINGS', 'Disburse savings goal', { saving_id: id, total_amount: totalDisbursed }, req);
 
             res.status(200).json({
                 message: `Giải ngân thành công! Đã hoàn trả ${totalDisbursed.toLocaleString('vi-VN')} ₫ về ${contributions.length} ví.`,

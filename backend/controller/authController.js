@@ -59,7 +59,7 @@ const register = async (req, res) => {
         // Send OTP via Resend
         await sendVerificationEmail(email, code);
 
-        logUserActivity(null, 'REGISTER', `Yêu cầu đăng ký tài khoản với email: ${email}`, req);
+        logUserActivity(null, 'REGISTER', 'User registration request', { email }, req);
 
         return res.status(200).json({ message: "Verification code sent to your email!" });
     } catch (error) {
@@ -101,7 +101,7 @@ const verifyEmail = async (req, res) => {
         // Clean up verification record
         await db.query('DELETE FROM email_verifications WHERE email = ?', [email]);
 
-        logUserActivity(userId, 'VERIFY_OTP', `Xác thực email thành công, tài khoản đã được kích hoạt cho email: ${email}`, req);
+        logUserActivity(userId, 'VERIFY_OTP', 'Verify email OTP and activate account', { email }, req);
 
         return res.status(201).json({ message: "Email verified! Your account has been created successfully." });
     } catch (error) {
@@ -136,7 +136,7 @@ const login = async (req, res) => {
         res.cookie('access_token', access_token, { ...cookieOptions, maxAge: 15 * 60 * 1000 }); // 15 minutes
         res.cookie('refresh_token', refresh_token, { ...cookieOptions, maxAge: 30 * 24 * 60 * 60 * 1000 }); // 30 days
 
-        logUserActivity(user.id, 'LOGIN', `Đăng nhập thành công từ email: ${email}`, req);
+        logUserActivity(user.id, 'LOGIN', 'User logged in successfully', { email }, req);
 
         res.status(200).json({
             message: "Login successfully!",
@@ -249,7 +249,7 @@ const logout = async (req, res) => {
             const decoded = jwt.decode(refresh_token);
             if (decoded) userId = decoded.id;
         } catch (e) {}
-        logUserActivity(userId, 'LOGOUT', 'Đăng xuất khỏi hệ thống', req);
+        logUserActivity(userId, 'LOGOUT', 'User logged out', null, req);
 
         return res.status(200).json({ message: "Logout successfully!" });
     } catch (error) {

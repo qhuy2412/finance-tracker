@@ -20,7 +20,7 @@ const createWallet = async (req, res) => {
         const { name, type, balance } = req.body;
         const result = await financeService.createWallet(userId, { name, type, balance });
         
-        logUserActivity(userId, 'CREATE_WALLET', `Tạo ví mới "${name}" (${type}) với số dư ban đầu: ${Number(balance).toLocaleString('vi-VN')} ₫`, req);
+        logUserActivity(userId, 'CREATE_WALLET', 'Create new wallet', { name, type, balance }, req);
 
         return res.status(201).json(result);
     } catch (error) {
@@ -64,7 +64,7 @@ const updateWallet = async (req, res) => {
 
         await Wallet.updateWallet(walletId, name, type, balance);
 
-        logUserActivity(userId, 'UPDATE_WALLET', `Cập nhật ví "${name}" (${type}) - Số dư mới: ${Number(balance).toLocaleString('vi-VN')} ₫ (Số dư cũ: ${Number(wallet.balance).toLocaleString('vi-VN')} ₫)`, req);
+        logUserActivity(userId, 'UPDATE_WALLET', 'Update wallet details', { wallet_id: id, name, type, old_balance: wallet.balance, new_balance: balance }, req);
 
         return res.status(200).json({ message: "Wallet updated successfully!" });
     } catch (error) {

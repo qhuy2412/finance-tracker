@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const db = require('../config/db');
 
 const LOGS_DIR = path.join(__dirname, '../logs');
 
@@ -24,6 +25,63 @@ const writeToFile = (filename, data) => {
     });
 };
 
+const saveUserActivityLog = async (logData) => {
+    try {
+        const sql = `
+            INSERT INTO user_activity_logs (user_id, action, details, payload, ip, user_agent, server_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
+        const dbUserId = (logData.userId && logData.userId !== 'anonymous') ? logData.userId : null;
+        
+        await db.execute(sql, [
+            dbUserId,
+            logData.action,
+            logData.details,
+            logData.payload ? JSON.stringify(logData.payload) : null,
+            logData.ip || null,
+            logData.userAgent || null,
+            logData.server
+        ]);
+    } catch (err) {
+        console.error('[Logger Database Error] Failed to write user activity log:', err);
+    }
+};
+
+const saveAgentActivityLog = async (logData, agentType) => {
+    try {
+        const sql = `
+            INSERT INTO agent_activity_logs (
+                user_id, session_id, agent_type, user_message, bot_response, steps, response_time_ms,
+                prompt_tokens, candidates_tokens, total_tokens, estimated_cost_usd, server_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        const dbUserId = (logData.userId && logData.userId !== 'anonymous') ? logData.userId : null;
+        const dbSessionId = (logData.sessionId && logData.sessionId !== 'new-session') ? logData.sessionId : null;
+        
+        const promptTokens = logData.tokenUsage ? logData.tokenUsage.promptTokens : null;
+        const candidatesTokens = logData.tokenUsage ? logData.tokenUsage.candidatesTokens : null;
+        const totalTokens = logData.tokenUsage ? logData.tokenUsage.totalTokens : null;
+        
+        await db.execute(sql, [
+            dbUserId,
+            dbSessionId,
+            agentType,
+            logData.userMessage || null,
+            logData.botResponse,
+            JSON.stringify(logData.steps),
+            logData.responseTimeMs,
+            promptTokens,
+            candidatesTokens,
+            totalTokens,
+            logData.estimatedCostUSD,
+            logData.server
+        ]);
+    } catch (err) {
+        console.error('[Logger Database Error] Failed to write agent activity log:', err);
+    }
+};
+
 /**
  * Log a user action to user_activity.log and stdout.
  * @param {string} userId - ID of the user performing the action
@@ -31,7 +89,18 @@ const writeToFile = (filename, data) => {
  * @param {string} details - Human-readable description
  * @param {object|null} req - Express Request object to extract IP and User-Agent
  */
-const logUserActivity = (userId, action, details, req = null) => {
+const logUserActivity = (userId, action, details, arg4 = null, arg5 = null) => {
+    let payload = null;
+    let req = null;
+
+    // Detect if arg4 is the Express request object or log payload
+    if (arg4 && (arg4.headers || arg4.ip || arg4.socket || arg4.route)) {
+        req = arg4;
+    } else {
+        payload = arg4;
+        req = arg5;
+    }
+
     const timestamp = new Date().toISOString();
     const logData = {
         timestamp,
@@ -39,6 +108,7 @@ const logUserActivity = (userId, action, details, req = null) => {
         userId: userId || 'anonymous',
         action,
         details,
+        payload: payload || null,
         ip: '',
         userAgent: ''
     };
@@ -65,6 +135,9 @@ const logUserActivity = (userId, action, details, req = null) => {
     } else {
         console.log(JSON.stringify({ logType: 'UserActivity', ...logData }));
     }
+
+    // 3. Save to database (non-blocking)
+    saveUserActivityLog(logData).catch(err => console.error('[Logger Unhandled Promise] user activity:', err));
 };
 
 // Gemini 2.5 Flash pricing (USD per 1M tokens)
@@ -188,6 +261,9 @@ const logChatbotActivity = (userId, sessionId, userMessage, botResponse, steps, 
     } else {
         console.log(JSON.stringify({ logType: 'ChatbotActivity', ...logData }));
     }
+
+    // 4. Save to database (non-blocking)
+    saveAgentActivityLog(logData, 'CHATBOT').catch(err => console.error('[Logger Unhandled Promise] chatbot activity:', err));
 };
 
 /**
@@ -267,6 +343,9 @@ const logWeeklyReportActivity = (userId, botResponse, steps, responseTimeMs, tok
     } else {
         console.log(JSON.stringify({ logType: 'WeeklyReportActivity', ...logData }));
     }
+
+    // 4. Save to database (non-blocking)
+    saveAgentActivityLog(logData, 'WEEKLY_REPORT').catch(err => console.error('[Logger Unhandled Promise] weekly report activity:', err));
 };
 
 module.exports = {

@@ -8,7 +8,7 @@ const setBudget = async (req, res) => {
     try {
         const result = await financeService.setBudget(userId, req.body);
 
-        logUserActivity(userId, 'CREATE_BUDGET', `Thiết lập/cập nhật ngân sách danh mục ${category_id} với số tiền: ${Number(amount).toLocaleString('vi-VN')} ₫`, req);
+        logUserActivity(userId, 'CREATE_BUDGET', 'Set or update budget limit', { category_id, amount }, req);
 
         return res.status(201).json(result);
     } catch (error) {
@@ -56,7 +56,7 @@ const deleteBudget = async (req, res) => {
     try {
         const result = await financeService.deleteBudget(userId, id);
 
-        logUserActivity(userId, 'DELETE_BUDGET', `Xóa ngân sách ID ${id}`, req);
+        logUserActivity(userId, 'DELETE_BUDGET', 'Delete budget', { id }, req);
 
         return res.status(200).json(result);
     } catch (error) {

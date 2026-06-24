@@ -1,29 +1,8 @@
-const fs = require('fs');
-const path = require('path');
 const os = require('os');
 const db = require('../config/db');
 
-const LOGS_DIR = path.join(__dirname, '../logs');
-
-// Ensure the logs directory exists
-if (!fs.existsSync(LOGS_DIR)) {
-    fs.mkdirSync(LOGS_DIR, { recursive: true });
-}
-
 const SERVER_ID = process.env.SERVER_ID || os.hostname();
 const IS_DEV = process.env.NODE_ENV !== 'production';
-
-// Helper to write JSON Lines to file
-const writeToFile = (filename, data) => {
-    const filePath = path.join(LOGS_DIR, filename);
-    const logEntry = JSON.stringify(data) + '\n';
-    
-    fs.appendFile(filePath, logEntry, (err) => {
-        if (err) {
-            console.error(`[Logger Error] Failed to write to ${filename}:`, err);
-        }
-    });
-};
 
 const saveUserActivityLog = async (logData) => {
     try {
@@ -122,8 +101,7 @@ const logUserActivity = (userId, action, details, arg4 = null, arg5 = null) => {
         }
     }
 
-    // 1. Write to local file
-    writeToFile('user_activity.log', logData);
+
 
     // 2. Stream to stdout for docker logs -f
     if (IS_DEV) {
@@ -156,52 +134,7 @@ const estimateCost = (promptTokens, candidatesTokens) => {
     return parseFloat((inputCost + outputCost).toFixed(8));
 };
 
-/**
- * Write a human-readable trace log for a chatbot interaction.
- */
-const writeTraceLog = (logData) => {
-    const divider = '─'.repeat(80);
-    const lines = [
-        divider,
-        `[${logData.timestamp}] SERVER: ${logData.server} | USER: ${logData.userId} | SESSION: ${logData.sessionId}`,
-        `⏱  Response time: ${logData.responseTimeMs}ms`,
-        ...(logData.tokenUsage ? [
-            `🪙 Tokens — Input: ${logData.tokenUsage.promptTokens} | Output: ${logData.tokenUsage.candidatesTokens} | Total: ${logData.tokenUsage.totalTokens} | Est. cost: $${logData.estimatedCostUSD}`,
-        ] : []),
-        ``,
-        `👤 USER: ${logData.userMessage}`,
-        ``,
-    ];
 
-    if (logData.steps && logData.steps.length > 0) {
-        logData.steps.forEach((step) => {
-            lines.push(`  🔄 [Iteration ${step.iteration}]`);
-            step.toolCalls.forEach((tc) => {
-                lines.push(`    🔧 Tool call: ${tc.name}`);
-                lines.push(`       Args: ${JSON.stringify(tc.args, null, 0)}`);
-            });
-            step.observations.forEach((obs) => {
-                const resultStr = typeof obs.result === 'object'
-                    ? JSON.stringify(obs.result).slice(0, 500)
-                    : String(obs.result).slice(0, 500);
-                lines.push(`    📊 Result [${obs.toolName}]: ${resultStr}`);
-            });
-            lines.push('');
-        });
-    } else {
-        lines.push('  (No tools used — direct answer)');
-        lines.push('');
-    }
-
-    lines.push(`🤖 BOT: ${logData.botResponse}`);
-    lines.push('');
-
-    const traceEntry = lines.join('\n') + '\n';
-    const filePath = path.join(LOGS_DIR, 'chatbot_trace.log');
-    fs.appendFile(filePath, traceEntry, (err) => {
-        if (err) console.error('[Logger Error] Failed to write chatbot_trace.log:', err);
-    });
-};
 
 /**
  * Log chatbot conversation and internal ReAct tool execution steps.
@@ -232,11 +165,7 @@ const logChatbotActivity = (userId, sessionId, userMessage, botResponse, steps, 
         estimatedCostUSD,
     };
 
-    // 1. Write JSONL to chatbot_agent.log
-    writeToFile('chatbot_agent.log', logData);
 
-    // 2. Write human-readable trace to chatbot_trace.log
-    writeTraceLog(logData);
 
     // 3. Stream to stdout for docker logs -f
     if (IS_DEV) {
@@ -291,46 +220,7 @@ const logWeeklyReportActivity = (userId, botResponse, steps, responseTimeMs, tok
         estimatedCostUSD,
     };
 
-    // 1. Write JSONL to weekly_report_agent.log
-    writeToFile('weekly_report_agent.log', logData);
 
-    // 2. Write human-readable trace to weekly_report_trace.log
-    const divider = '─'.repeat(80);
-    const lines = [
-        divider,
-        `[${logData.timestamp}] WEEKLY REPORT | SERVER: ${logData.server} | USER: ${logData.userId}`,
-        `⏱  Response time: ${logData.responseTimeMs}ms`,
-        ...(logData.tokenUsage ? [
-            `🪙 Tokens — Input: ${logData.tokenUsage.promptTokens} | Output: ${logData.tokenUsage.candidatesTokens} | Total: ${logData.tokenUsage.totalTokens} | Est. cost: $${logData.estimatedCostUSD}`,
-        ] : []),
-        ``,
-    ];
-
-    if (logData.steps && logData.steps.length > 0) {
-        logData.steps.forEach((step) => {
-            lines.push(`  🔄 [Iteration ${step.iteration}]`);
-            step.toolCalls.forEach((tc) => {
-                lines.push(`    🔧 Tool call: ${tc.name}`);
-                lines.push(`       Args: ${JSON.stringify(tc.args, null, 0)}`);
-            });
-            step.observations.forEach((obs) => {
-                const resultStr = typeof obs.result === 'object'
-                    ? JSON.stringify(obs.result).slice(0, 500)
-                    : String(obs.result).slice(0, 500);
-                lines.push(`    📊 Result [${obs.toolName}]: ${resultStr}`);
-            });
-            lines.push('');
-        });
-    }
-
-    lines.push(`🤖 BOT: ${logData.botResponse}`);
-    lines.push('');
-
-    const traceEntry = lines.join('\n') + '\n';
-    const filePath = path.join(LOGS_DIR, 'weekly_report_trace.log');
-    fs.appendFile(filePath, traceEntry, (err) => {
-        if (err) console.error('[Logger Error] Failed to write weekly_report_trace.log:', err);
-    });
 
     // 3. Stream to stdout for docker logs -f
     if (IS_DEV) {

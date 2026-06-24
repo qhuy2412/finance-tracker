@@ -6,8 +6,7 @@ services:
     restart: always
     ports:
       - "9999:9999"
-    volumes:
-      - /var/www/fintra/logs:/app/logs
+
     # Load all environment variables securely from the host VM's local env file
     env_file:
       - /var/www/fintra/.env
@@ -47,7 +46,7 @@ services:
     user: "0:0"
     volumes:
       - /var/www/fintra/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
-      - /var/www/fintra/logs:/var/log/fintra:ro
+
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     command: -config.file=/etc/promtail/promtail-config.yml -config.expand-env=true
